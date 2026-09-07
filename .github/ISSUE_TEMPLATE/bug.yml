@@ -1,0 +1,17 @@
+name: Bug report
+description: Report a reproducible Codex plugin issue without private data.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions and platform
+      description: Copy sanitized doctor componentVersions and check codes only.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Expected behavior and reproduction
+      description: Do not attach account stores, private prompts, tokens or certificate keys.
+    validations:
+      required: true

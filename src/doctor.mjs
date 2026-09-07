@@ -1,0 +1,59 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { StdioRpc, BridgeError } from '../packages/bridge-core/stdio-rpc.mjs';
+
+const exec = promisify(execFile);
+const compatibility = JSON.parse(await readFile(new URL('../compatibility.json', import.meta.url)));
+
+export async function doctor({ probe = false, command = 'codex' } = {}) {
+  const report = {
+    schemaVersion: 1, status: 'blocked', changed: false,
+    componentVersions: { adapter: compatibility.adapterVersion, node: process.versions.node, codex: null },
+    checks: [], actions: [], requiresUserAction: [],
+    warnings: ['AI0_ONLY_NO_REMOTE_ACCESS', 'EXECUTION_SANDBOX_NOT_VERIFIED'],
+    capabilities: { remoteAccess: false, proEntitlement: 'pro.lifetime' }
+  };
+  const check = (id, status, code) => report.checks.push({ id, status, code });
+  let directory;
+  let rpc;
+  try {
+    if (Number(process.versions.node.split('.')[0]) < 22) throw new BridgeError('NODE_VERSION_UNSUPPORTED');
+    const { stdout } = await exec(command, ['--version'], { timeout: 5000, maxBuffer: 4096, windowsHide: true });
+    const version = /^codex(?:-cli)?\s+(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*$/m.exec(stdout)?.[1];
+    report.componentVersions.codex = version ?? null;
+    if (!compatibility.codexVersions.includes(version)) throw new BridgeError('CODEX_VERSION_UNVERIFIED');
+    check('version', 'pass', 'PINNED_VERSION');
+    if (probe) {
+      directory = await mkdtemp(join(tmpdir(), 'remotedesk-codex-probe-'));
+      rpc = new StdioRpc(command, ['app-server'], { cwd: directory });
+      const initialized = await rpc.request('initialize', {
+        clientInfo: { name: 'remotedesk_ai0_probe', title: 'RemoteDesk AI0 Probe', version: compatibility.adapterVersion },
+        capabilities: { experimentalApi: false }
+      });
+      if (typeof initialized?.userAgent !== 'string') throw new BridgeError('INITIALIZE_SHAPE_CHANGED');
+      rpc.notify('initialized');
+      check('initialize', 'pass', 'REAL_APP_SERVER_HANDSHAKE');
+      const started = await rpc.request('thread/start', {
+        cwd: directory, ephemeral: true, sandbox: 'read-only', approvalPolicy: 'untrusted', approvalsReviewer: 'user'
+      });
+      if (typeof started?.thread?.id !== 'string' || started.approvalPolicy !== 'untrusted' ||
+          started.approvalsReviewer !== 'user' || started.sandbox?.type !== 'readOnly') {
+        throw new BridgeError('EXECUTION_PROFILE_MISMATCH');
+      }
+      check('ephemeralThread', 'pass', 'READ_ONLY_PROFILE_ACCEPTED_NO_TURN');
+      report.warnings.push('NO_MODEL_TURN_APPROVAL_CANCEL_OR_RESUME_TESTED', 'ENGINE_MAY_WRITE_OWN_OPERATIONAL_LOGS');
+    }
+    report.status = 'ok';
+  } catch (error) {
+    const code = error instanceof BridgeError ? error.code : 'LOCAL_PROBE_FAILED';
+    check('probe', 'fail', code);
+    report.requiresUserAction.push('CHECK_COMPATIBILITY_AND_LOCAL_ENGINE');
+  } finally {
+    if (rpc) await rpc.close();
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
+  return report;
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-09-07",
+  "originalCodeLicense": "MIT",
+  "redistributedDependencies": [],
+  "upstream": {
+    "name": "Codex CLI",
+    "version": "0.153.4",
+    "use": "external executable and public App Server protocol",
+    "source": "https://github.com/openai/codex",
+    "documentation": "https://learn.chatgpt.com/docs/app-server",
+    "schemaGeneration": "codex app-server generate-json-schema --out <temporary-directory>",
+    "schemaSha256": {
+      "ThreadStartParams": "792e2f32e37cece971bd616664ea2053741acbed4e9c92e9d1766427718f2ecd",
+      "ThreadStartResponse": "656f8fd0fe91f533126cbfdb9369cfab550927a229e48dd46460f6f015d2b186",
+      "TurnStartParams": "a3835e8c1e942e4b358e1a670939b89918b16c4d13105a579899892b7ade6dea",
+      "ThreadReadParams": "dfe040c6ac71d30795b8be3f3ff232e66f362a37f883b491e5d1ea367f470db4"
+    }
+  },
+  "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins",
+  "ciActions": {
+    "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020"
+  }
+}
