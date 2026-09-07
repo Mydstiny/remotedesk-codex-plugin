@@ -7,6 +7,11 @@ createInterface({ input: process.stdin }).on('line', line => {
   const request = JSON.parse(line);
   if (!request.method) { send({ id: first.id, result: request.error?.code }); return; }
   if (mode === 'hang') return;
+  if (mode === 'escaped') {
+    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { detached: true, stdio: ['ignore', process.stdout, 'ignore'] });
+    setTimeout(() => send({ id: request.id, result: child.pid }), 100);
+    return;
+  }
   if (mode === 'descendant') {
     const child = spawn(process.execPath, ['-e', "process.on('SIGTERM',()=>{}); process.stdout.write('ready\\n'); setInterval(()=>{},1000)"], { stdio: ['ignore', 'pipe', 'ignore'] });
     child.stdout.once('data', () => {

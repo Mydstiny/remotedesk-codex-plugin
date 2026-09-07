@@ -22,6 +22,8 @@ export class StdioRpc extends EventEmitter {
   #resolveClose;
   #directExited = false;
   #cleanupStarted = false;
+  #stdoutEnded = false;
+  #forcedPipeClose = false;
 
   constructor(command, args = [], { cwd, timeoutMs = 15000, maxFrameBytes = 1048576, maxPending = 32 } = {}) {
     super();
@@ -42,11 +44,12 @@ export class StdioRpc extends EventEmitter {
       this.#fail('PROCESS_CLOSED');
       // Pipe closure alone does not prove descendants exited. Keep the group
       // cleanup timer if any owned group member remains.
-      if (!this.#groupExists()) this.#finishClose(true);
+      if (!this.#groupExists()) this.#finishClose(!this.#forcedPipeClose && (!this.#child.pid || this.#stdoutEnded));
     });
     this.#child.once('error', () => { this.#directExited = true; this.#fail('PROCESS_START_FAILED'); });
     this.#child.stdin.on('error', () => this.#fail('TRANSPORT_WRITE_FAILED'));
     this.#child.stdout.on('error', () => this.#fail('TRANSPORT_READ_FAILED'));
+    this.#child.stdout.on('end', () => { this.#stdoutEnded = true; });
     this.#child.stdout.on('data', chunk => this.#consume(chunk));
   }
 
@@ -83,9 +86,14 @@ export class StdioRpc extends EventEmitter {
     this.#signalGroup('SIGTERM');
     this.#killTimer = setTimeout(() => {
       this.#signalGroup('SIGKILL');
-      // Escaped descendants must not hold the inherited pipe open forever.
-      this.#child.stdout.destroy();
-      this.#closeTimer = setTimeout(() => this.#finishClose(this.#directExited && !this.#groupExists()), 500);
+      this.#closeTimer = setTimeout(() => {
+        // Give owned members time to exit and deliver natural EOF. If we must
+        // cut the pipe, an escaped descendant may still hold it: never claim
+        // confirmed cleanup merely because the original group disappeared.
+        this.#forcedPipeClose = !this.#stdoutEnded;
+        this.#child.stdout.destroy();
+        this.#finishClose(this.#directExited && !this.#groupExists() && !this.#forcedPipeClose);
+      }, 500);
     }, 1000);
   }
 

@@ -49,3 +49,16 @@ test('bounds cleanup and kills owned descendants that inherit stdout and ignore 
   assert.ok(Date.now() - start < 2500);
   for (const pid of children) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
+test('reports unconfirmed cleanup when an escaped descendant holds stdout', async t => {
+  const rpc = new StdioRpc(process.execPath, [fileURLToPath(new URL('./fixtures/server.mjs', import.meta.url)), 'escaped']);
+  let escaped;
+  t.after(async () => {
+    if (escaped) { try { process.kill(escaped, 'SIGKILL'); } catch { /* already gone */ } }
+    await rpc.close().catch(() => {});
+  });
+  escaped = await rpc.request('launch');
+  const start = Date.now();
+  await assert.rejects(rpc.close(), { code: 'PROCESS_CLEANUP_UNCONFIRMED' });
+  assert.ok(Date.now() - start < 2500);
+  assert.doesNotThrow(() => process.kill(escaped, 0));
+});
