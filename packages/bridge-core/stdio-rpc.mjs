@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import { quoteWindows } from './windows/command.mjs';
 
 export class BridgeError extends Error {
   constructor(code) { super(code); this.code = code; }
@@ -24,19 +26,23 @@ export class StdioRpc extends EventEmitter {
   #cleanupStarted = false;
   #stdoutEnded = false;
   #forcedPipeClose = false;
+  #requestHandler;
+  #serverPending = new Set();
 
-  constructor(command, args = [], { cwd, timeoutMs = 15000, maxFrameBytes = 1048576, maxPending = 32 } = {}) {
+  constructor(command, args = [], { cwd, timeoutMs = 15000, maxFrameBytes = 1048576, maxPending = 32, requestHandler, env } = {}) {
     super();
     if (![timeoutMs, maxFrameBytes, maxPending].every(v => Number.isSafeInteger(v) && v > 0)) {
       throw new BridgeError('INVALID_LIMIT');
     }
-    if (process.platform === 'win32') throw new BridgeError('WINDOWS_PROCESS_TREE_NOT_VERIFIED');
+    this.#requestHandler = requestHandler;
     this.#maxFrameBytes = maxFrameBytes;
     this.#maxPending = maxPending;
     this.#timeoutMs = timeoutMs;
     // A dedicated POSIX group owns only this launch and its descendants.
     // This is not a background service: close always signals the whole group.
-    this.#child = spawn(command, args, { cwd, shell: false, detached: true, stdio: ['pipe', 'pipe', 'ignore'] });
+    const windows = process.platform === 'win32';
+    const payload = Buffer.from(JSON.stringify({ command, commandLine: [command, ...args].map(quoteWindows).join(' ') })).toString('base64');
+    this.#child = spawn(windows ? 'powershell.exe' : command, windows ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', fileURLToPath(new URL('./windows/job.ps1', import.meta.url)), '-Payload', payload] : args, { cwd, env, shell: false, detached: !windows, windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
     this.#exited = new Promise(resolve => { this.#resolveClose = resolve; });
     this.#child.once('exit', () => { this.#directExited = true; this.#fail('PROCESS_CLOSED'); });
     this.#child.once('close', () => {
@@ -55,13 +61,14 @@ export class StdioRpc extends EventEmitter {
 
   #groupExists() {
     if (!this.#child.pid) return false;
+    if (process.platform === 'win32') return !this.#directExited;
     try { process.kill(-this.#child.pid, 0); return true; }
     catch (error) { return error.code !== 'ESRCH'; }
   }
 
   #signalGroup(signal) {
     if (!this.#child.pid) return;
-    try { process.kill(-this.#child.pid, signal); }
+    try { if (process.platform === 'win32') this.#child.kill(signal); else process.kill(-this.#child.pid, signal); }
     catch { /* The bounded close check reports any remaining launch. */ }
   }
 
@@ -125,9 +132,17 @@ export class StdioRpc extends EventEmitter {
     if (typeof message.method === 'string') {
       if (hasId) {
         if (!(typeof message.id === 'string' || Number.isSafeInteger(message.id))) return this.#fail('INVALID_FRAME');
-        // AI0 has no approval UI. Unknown requests can never become grants.
-        this.#write({ id: message.id, error: { code: -32601, message: 'RemoteDesk probe does not handle server requests' } });
-        this.emit('serverRequestRejected', { method: message.method });
+        if (!this.#requestHandler) {
+          this.#write({ id: message.id, error: { code: -32601, message: 'Unsupported server request' } });
+          this.emit('serverRequestRejected', { method: message.method });
+        } else {
+          if (this.#serverPending.has(message.id) || this.#serverPending.size >= this.#maxPending) return this.#fail('SERVER_REQUEST_LIMIT');
+          this.#serverPending.add(message.id);
+          Promise.resolve().then(() => this.#requestHandler(message.method, message.params)).then(
+            result => { if (!this.#closed) this.#write({id:message.id,result}); },
+            () => { if (!this.#closed) this.#write({id:message.id,error:{code:-32601,message:'Request denied or unavailable'}}); }
+          ).catch(() => this.#fail('SERVER_RESPONSE_FAILED')).finally(() => this.#serverPending.delete(message.id));
+        }
       } else {
         this.emit('notification', message);
       }

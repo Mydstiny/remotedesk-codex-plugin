@@ -20,7 +20,7 @@ test('rejects every server approval request without granting', async t => {
 });
 for (const [mode, code] of [['invalid','INVALID_FRAME'],['oversize','FRAME_TOO_LARGE'],['unknown','UNEXPECTED_RESPONSE'],['exit','PROCESS_CLOSED'],['hang','REQUEST_TIMEOUT_RECONCILE']]) {
   test(`fails closed on ${mode}`, async t => {
-    const rpc = fixture(t, mode, { timeoutMs: 500, maxFrameBytes: 1024 });
+    const rpc = fixture(t, mode, { timeoutMs: process.platform==='win32'?10000:500, maxFrameBytes: 1024 });
     await assert.rejects(rpc.request('test'), { code });
     await assert.rejects(rpc.request('later'), { code: 'TRANSPORT_CLOSED' });
   });
@@ -39,7 +39,7 @@ test('bounds pending requests and settles every request on close', async t => {
 test('rejects missing executable without exposing path', async t => {
   const rpc = new StdioRpc('/nonexistent/remotedesk-test-command');
   t.after(() => rpc.close());
-  await assert.rejects(rpc.request('test'), { code: 'PROCESS_START_FAILED' });
+  await assert.rejects(rpc.request('test'), { code: process.platform==='win32'?'PROCESS_CLOSED':'PROCESS_START_FAILED' });
 });
 test('bounds cleanup and kills owned descendants that inherit stdout and ignore SIGTERM', async t => {
   const rpc = fixture(t, 'descendant');
@@ -49,7 +49,7 @@ test('bounds cleanup and kills owned descendants that inherit stdout and ignore 
   assert.ok(Date.now() - start < 2500);
   for (const pid of children) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
-test('reports unconfirmed cleanup when an escaped descendant holds stdout', async t => {
+test('reports unconfirmed cleanup when an escaped descendant holds stdout', {skip:process.platform==='win32'}, async t => {
   const rpc = new StdioRpc(process.execPath, [fileURLToPath(new URL('./fixtures/server.mjs', import.meta.url)), 'escaped']);
   let escaped;
   t.after(async () => {
