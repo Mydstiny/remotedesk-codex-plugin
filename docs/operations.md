@@ -1,53 +1,32 @@
-# Codex 安装、运行与维护
+# 安装与运维：原生版 0.3.0
 
-## 1. 安装前检查
+## 准备
 
-取得维护者指定的 Release/tag 和完整 commit，检查仓库为 `Mydstiny/remotedesk-codex-plugin`。下载版本 tarball 与 SHA256SUMS，macOS/Linux 用 `shasum -a 256` 或 `sha256sum`，Windows 用 `Get-FileHash -Algorithm SHA256` 核对。GitHub 同源 checksum 用于完整性检查，不是独立签名。
+核对 README、compatibility.json、SECURITY 和 Release 的 SHA256SUMS。将归档解压到当前用户可写的持久版本目录，例如 `RemoteDesk/codex/0.3.0`。所有命令从该目录运行。使用普通用户；不要让服务引用临时目录，不以 root/SYSTEM 运行。
 
-解压到用户有写权限的**持久版本目录**，例如用户应用目录下 `RemoteDesk/codex/0.2.0`；不要让后台服务引用临时目录或下载完成即删除的文件。保留旧版本用于回滚。Node.js、OpenSSL、Docker CLI 和 Codex 必须在启动时 PATH 中可用；用普通用户运行，禁止以 root/SYSTEM 部署。Windows 使用 Docker Desktop Linux 容器模式，Linux 使用用户可访问的本机 Docker socket，macOS 使用本机 Docker Desktop。远端 TCP Docker daemon 不支持。
+需要 Node.js 22.16+、OpenSSL 3、Codex **0.153.4**。使用宿主原有 provider 配置，不复制/显示密钥，不修改全局模型默认值。`doctor --json` 只验证版本和结构，实际模型调用需单独测试。无需容器、镜像或 Docker daemon。
 
-```sh
-node bin/remotedesk-codex.mjs doctor --json
-```
-
-### Codex 插件与后台进程
-
-包内 `.codex-plugin/plugin.json` 和 `skills/remotedesk-setup` 用于 Codex 的设置引导；后台服务由下文命令单独管理。只安装 skill 不会启动监听。远程会话使用主机 provider/model，但采用 RemoteDesk 的受限提示与三项动态工具，不继承本地插件、MCP、浏览器、子 Agent、原生 shell 或任意技能执行能力。
-
-官方 App Server 的 `environments: []` 用于每次创建/恢复及每次回合，移除原生执行环境；命令转到项目 Docker。此模式不是完整复制本地 Codex 的所有功能。默认使用已配置模型；本地主机管理员可在 `project-add` 指定 `--provider`、`--model`。未知模型默认为文本；经本地确认支持视觉后才加 `--vision on`。
-
-## 2. 准备执行镜像
-
-插件不会在回合中自动拉取镜像。用仓库的固定基础镜像 Dockerfile 在本机构建，然后记录实际 image ID。自定义镜像须由本地主机管理员审核，包含 `/bin/sh`、Node.js、git 和所需工具链；项目命令无网络，依赖应预装在镜像/项目中。
-
-```sh
-docker build -t remotedesk-sandbox:0.2.0 packages/bridge-core/sandbox
-docker image inspect remotedesk-sandbox:0.2.0 --format '{{.Id}}'
-```
-
-将输出的 `sha256:...` 用于 `--image`。镜像被固定为具体内容，不使用浮动 tag。容器限额：512 MiB 内存、1 CPU、128 PID、180 秒单命令、1 MiB 输出、64 MiB 临时目录。镜像构建可联网；远程回合容器不可联网。macOS/Linux 容器使用当前 UID/GID，Windows 为 1000:1000；项目共享必须允许该用户写入。项目路径不支持逗号或换行。
-
-## 3. 初始化和项目授权
-
-下列是 POSIX shell 示例。在 PowerShell 中使用 `$STATE = Join-Path $env:USERPROFILE '.remotedesk/codex'` 并将 `$STATE` 按普通字符串参数传入。不要复用 shell 的 HOME 变量。
+## 初始化和授权项目
 
 ```sh
 STATE="$HOME/.remotedesk/codex"
 node bin/remotedesk-codex.mjs init --state "$STATE" --host 127.0.0.1 --hosts localhost,127.0.0.1 --port 9443
-node bin/remotedesk-codex.mjs project-add --state "$STATE" --id demo --path "/absolute/project" --title "Demo" --image "sha256:<64 hex characters>"
+node bin/remotedesk-codex.mjs project-add --state "$STATE" --id demo --path "/absolute/project" --title "Demo"
 ```
 
-请替换示例路径和 image ID。状态目录不能在任何授权项目中，项目不能包含状态目录。初始化只接受新空目录：POSIX 权限 0700；Windows ACL 仅当前用户完全控制。证书、配对、会话映射、操作回执等都保存在此目录，不放入仓库。
+将示例路径替换为本机已授权目录。在 PowerShell 中用 `$STATE = Join-Path $env:USERPROFILE '.remotedesk/codex'`；不要覆盖 HOME。初始化只接受新的私有空目录；state 与所有项目都不能互相包含。已有 state 可在停服并备份后升级，不重新 init 覆盖证书。
 
-局域网：初始化时 `--host` 指定本机 LAN 地址，`--hosts` 同时包含客户端实际使用的 DNS/IP、localhost 和 127.0.0.1。仅证书列出的名称可连接；`0.0.0.0` 是监听地址，不能当客户端证书名。将所选端口仅向需要的局域网开放，插件不会修改防火墙。现有配置变更应停服、编辑私有 `config.json` 并重启；SAN 变化需重新初始化证书和配对，不能使用跳过 TLS 校验。
+`project-add` 可选 `--provider`、`--model`；模型凭据只在宿主原生配置中设置。`--vision on|off` 是本机对图片能力的显式覆盖。远端只能选择已配置 provider/model，不能传 endpoint 或密钥。
 
-## 4. 前台启动与配对
+局域网部署时，`--host` 使用明确的本机 LAN 地址，`--hosts` 包含客户端使用的地址、localhost 和 127.0.0.1。按需要授权防火墙访问，插件不会改变防火墙/代理。禁止跳过 TLS 证书检查；监听 `0.0.0.0` 不能替代有效 SAN。
+
+## 启动、配对和本机验收
 
 ```sh
 node bin/remotedesk-codex.mjs serve --state "$STATE"
 ```
 
-成功输出 `ready: true`。在另一个终端生成两分钟有效的单次邀请；它只写入私有状态目录，不把配对码打印到日志：
+看到 `ready: true` 后，在另一终端创建两分钟有效的邀请并配对参考客户端：
 
 ```sh
 node bin/remotedesk-codex.mjs invite --state "$STATE" --projects demo --role operator --out "$STATE/invite.json"
@@ -55,27 +34,17 @@ node bin/remotedesk-codex.mjs pair --client "/absolute/private-client" --url "ht
 node bin/remotedesk-codex.mjs read --client "/absolute/private-client" --method project.list
 ```
 
-远端参考客户端同样从包运行 `pair`，通过可信方式接收邀请文件；配对完成删除传输副本和邀请文件。客户端自己生成私钥，私钥不发给服务端。可签发 `viewer` 只读设备。最多 16 个未撤销设备，每个邀请替代尚未使用的旧邀请。证书有效期 90 天，到期前创建新客户端身份并撤销旧设备，不延长旧私钥身份。
+邀请通过可信渠道传递；不要贴进公开聊天或日志，配对完成删除传输副本。每个客户端本地生成私钥。可签发 viewer；最多 16 个未撤销设备。模型内容与工具结果属于会话历史，应保持私有。
 
-后台日志只应保留启动和错误码，不记录邀请或模型凭据。模型内容、附件及工具输出会正常出现在已授权会话历史中，客户端应当视为项目私有数据。
+协议参数通过 JSON 文件传给 `write --method <method> --params <file>`，并附 `--client`。按顺序测试：session.create → lease.acquire → turn.start → approval.list/approval.answer → session.read；然后检查命令接受/拒绝、取消、归档/恢复、重启后的历史。租约 90 秒有效，每 30 秒续期。`model.list` 返回可选模型与强度，`session.update` 修改标题/设置；`session.fork`、`session.compact` 和 `terminal.list/stop` 用法见 [协议](protocol.md)。
 
-## 5. 操作会话
+审批须展示完整原生命令、文件变更和权限范围。普通批准用 `{"decision":"accept"}`；拒绝/取消用 decline/cancel；结构化问题用 `{"answers":{"questionId":{"answers":["所选答案"]}}}`。Codex 原生权限请求接受时还要明确 `"scope":"turn"`。不要持久记住整类命令的允许规则。
 
-协议参数通过 JSON 文件输入，防止 shell 转义破坏内容。`read` 不需要操作 ID；`write` 自动将原始请求、epoch 和 UUID 持久保存到客户端状态目录。
+Codex 默认 read-only/on-request，显式 workspace-write 允许沙箱内原生写入；DSH 默认 workspace-write 且写/edit/shell 逐次批准。工具输出中的错误、回合 failed、unknown 都不是验收通过。无需文件浏览专用接口：由原生 read/search 工具读取项目，差异由原生事件提供。
 
-1. `write --method session.create --params create.json`，文件为 `{"projectId":"demo","title":"Remote task"}`，记下返回的 `sessionId`。
-2. `write --method lease.acquire --params lease.json`，文件为 `{"sessionId":"<id>"}`，记下 `lease`。
-3. `write --method turn.start --params turn.json`，文件为 `{"sessionId":"<id>","lease":"<lease>","text":"Inspect this project"}`。
-4. `read --method session.read --params session.json`，文件为 `{"sessionId":"<id>"}`；用返回的 cursor 运行 `watch --cursor <cursor>`，历史分页使用 snapshot.nextCursor 再次读取。
-5. `read --method approval.list --params session.json` 获取待处理请求。命令答复 `approval.answer` 的参数为 `{"sessionId":"<id>","lease":"<lease>","approvalId":"<id>","answer":{"decision":"accept"}}`；拒绝用 `decline`，提问答复用 `{"text":"answer"}`。
+## 用户后台服务
 
-所有命令都加 `node bin/remotedesk-codex.mjs` 前缀与 `--client "/absolute/private-client"`。写租约 90 秒到期，客户端每 30 秒用 `lease.renew` 续期。断网不会取消已运行任务，但失效租约不再接受审批；显式 `turn.cancel` 才停止回合。支持 `turn.steer`、`session.archive`/`session.resume`、`diff.read` 与 UTF-8/PNG/JPEG 附件，详见 [协议](protocol.md)。模型是否支持图片另看所选 provider。
-
-**超时或 unknown：不要创建新 UUID 重发同一动作。** 使用 `retry --operation <原始ID>` 查询/重试已保存请求；过期 epoch 或 unknown 回执必须核对会话/差异后再决定新动作。服务重启会轮换事件 runtime 并清除旧租约，重新握手、快照和取得租约。SSE 的 RESET_REQUIRED 同样要重新快照，不从零盲目续接。
-
-## 6. 后台服务
-
-确认前台配对成功，Ctrl-C 停止后再安装当前用户服务：
+先停止前台服务，再从持久版本目录运行：
 
 ```sh
 node bin/remotedesk-codex.mjs service --state "$STATE" --action render
@@ -85,20 +54,30 @@ node bin/remotedesk-codex.mjs service --state "$STATE" --action stop
 node bin/remotedesk-codex.mjs service --state "$STATE" --action start
 ```
 
-macOS：LaunchAgent，用户登录后启动。Linux：systemd user，需正常用户服务管理器；默认退出登录后的行为由该用户会话决定，本工具不修改 linger。Windows：当前登录用户的 Scheduled Task，LeastPrivilege/InteractiveToken，不保存密码，不支持未登录时以 SYSTEM 代运行。服务记录固定 Node 路径、插件路径和必要 PATH/DSH_HOME，不存模型密钥。
+macOS 使用 LaunchAgent；Linux 使用 systemd user；Windows 使用当前用户 LeastPrivilege/InteractiveToken 计划任务。默认按用户登录会话启动，不自动修改 linger 或保存账号密码。服务使用固定 Node/插件路径和必要 PATH，模型密钥不写入服务定义。stop 等待本插件原生活动清理；崩溃后不会自动重启或重复模型请求。
 
-stop 会先等待正常退出，再与启动互斥地停止原生管理器，避免刚启动但尚未监听的进程在 stop 返回后继续运行。macOS stop 保留描述文件但卸载当前 job，start 会重新加载。
+## 未知结果与崩溃恢复
 
-服务不在崩溃后自动重启，避免不明操作被自动重复。先检查原生管理器状态与会话，再执行 `recover` 清理已确认死亡的本插件锁，随后 start。recover 拒绝活 PID，绝不偷走另一个控制器的锁。Docker 恢复仅删除带本服务 owner 标记且有本服务记录的容器，不运行 prune。
+超时或 unknown 时保留原 operationId/epoch，使用 `retry --operation <id>`，先核对历史，不换 UUID 重复派发。重启后重新握手、读取快照和取得租约；旧审批不可复用。
 
-## 7. 升级、回滚、续证和卸载
+如果出现 NATIVE_ACTIVITY_RECONCILIATION_REQUIRED，先停服，再运行：
 
-- **升级**：核验新包和固定兼容版本 → 停止并卸载旧服务注册 → 离线备份整个私有 state 与 DSH 对应会话存储 → 解压新版本到新目录 → DSH 重新 plugin-install 本地包 → 用新目录 service install → 配对/历史/审批/取消回归。备份含私钥，必须保持私有权限。不得复制 state 给第二台机器并同时运行。
-- **回滚**：停新服务并卸载注册，保留故障现场，使用旧版本目录重装。0.2.x 仅在状态 schema 兼容时直接复用；跨状态版本使用维护前的完整离线备份，不能把旧数据库与新证书混搭。恢复旧备份会改变已知操作历史，先核对所有未决动作，不自动发起写入。
-- **服务证书**：一年有效。`renew-server --state "$STATE"` 使用同一 CA/私钥续期，再正常停启服务。SAN 不变；CA 十年到期必须安排新信任与重新配对。
-- **撤销设备**：`status` 获取本服务设备 ID，`revoke --device <id>`。在轮询检测撤销后（正常间隔 500 ms）关闭现有流、拒绝旧审批，并请求取消该设备拥有的远程回合；完成取消仍需引擎与容器确认退出；不会注销主机账号或取消其他本地 Agent。
-- **卸载**：先 stop，再 `service --action uninstall`；DSH 用原生 plugin remove 移除此 bundle。保留 state、DSH 会话和用户项目；明确无需历史后再由用户删除这些数据。删除版本目录仅限本插件，不卸载官方引擎、Docker 或模型账号。
+```sh
+node bin/remotedesk-codex.mjs recover --state "$STATE" --action inspect
+```
 
-## 故障排查
+检查列出的原生会话/后台活动，在宿主原生工具或系统进程管理器中确认它们已停止。任意自行脱离的进程不在自动管理保证内。只有实际完成此检查后，才能把返回的精确 acknowledgement 值传给：
 
-`UNVERIFIED_*`：固定兼容版本不匹配；不要删除版本门。`DOCKER_*`：检查本机 Linux daemon、共享路径、固定镜像及普通用户权限。`PRIVATE_DIRECTORY_*`：核对目录所有者/ACL，不放宽为 everyone。`WORKSPACE_CLEANUP_UNCONFIRMED`/`execution.blocked`：项目写锁仍保留；停止服务，确认 Docker 可用，按 recover 清理后再启动，不可强删锁。`PROJECT_BUSY`：另一个 RemoteDesk 会话正在写同一项目；先查看并停止正确会话。`RESET_REQUIRED`：重新握手/快照。`EPOCH_*_RECONCILE`/`unknown`：核对历史后再操作。命令退出码 0 为当前动作成功，2 为失败或不确定结果。不得把 doctor 成功当作模型账户或设备矩阵通过。
+```sh
+node bin/remotedesk-codex.mjs recover --state "$STATE" --confirm-native-cleanup "<acknowledgement>"
+```
+
+此确认是操作者对原生工作已清理的声明；命令本身不杀进程。记录变化使旧摘要失效，活 PID 始终拒绝恢复。不确定时保留锁，不能强删。旧版留下 container 记录时，应先使用旧版清理；新版不会调用 Docker 处理旧活动。
+
+## 升级、续证和卸载
+
+升级顺序：停旧服务 → 备份私有 state/原生历史 → 解压并核验新目录 → DSH 重新 plugin-install → 从新目录安装服务 → 配对/模型/审批/取消/历史回归。0.2.0 升级改变工具和权限合同，先停止所有旧活动；不要把原生新版状态直接交给旧执行器继续工作。回滚使用维护前完整备份并核对未决操作。
+
+`renew-server --state "$STATE"` 续签同一 CA/SAN 的服务证书后需重启。设备证书 90 天、服务证书一年、CA 十年；更换身份需要重新配对和撤销旧设备。`status` 查看设备 ID，`revoke --device <id>` 撤销并请求取消其远程活动。卸载前 stop，再 `service --action uninstall`；保留项目、state、原生账号和用户历史。
+
+常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。

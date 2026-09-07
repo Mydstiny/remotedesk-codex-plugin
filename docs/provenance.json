@@ -1,38 +1,38 @@
 {
   "schemaVersion": 1,
   "recordedDate": "2026-09-07",
-  "adapterVersion": "0.2.0",
+  "adapterVersion": "0.3.0",
   "originalCodeLicense": "MIT",
   "ciActions": {
     "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020"
   },
-  "executionImage": {
-    "dockerfile": "packages/bridge-core/sandbox/Dockerfile",
-    "dockerfileSha256": "b2e361935df53ef9a12d05c63795fc7cabb52d369404404f0dc1c881a4121d76",
-    "baseImage": "node:26.4.0-bookworm-slim@sha256:ec82d089a8ae2cf02628da7b34ea57dc357b24db724d557fe2d240e6beb659c1",
-    "redistributed": false,
-    "buildNote": "The base is content-pinned. apt package resolution during image build can change; deployments pin the resulting immutable local image ID. No built image is included in this package."
-  },
+  "execution": "Native installed engine tools and sandbox; no container runtime.",
   "externalPrerequisites": [
     "Node.js >=22.16",
-    "OpenSSL 3",
-    "local Docker with Linux containers"
+    "OpenSSL 3"
   ],
-  "modelFixture": "Original deterministic test responses; no model weights, credentials or user transcripts are included.",
+  "modelFixture": "Original deterministic local test responses; no model weights, credentials or user transcripts included.",
   "redistributedDependencies": [],
   "upstream": {
     "name": "Codex CLI",
     "version": "0.153.4",
-    "use": "Externally installed pinned App Server. Empty native environments, controlled tool catalog, three original dynamic tools. Generated upstream schemas are inspected but not redistributed.",
+    "use": "Externally installed pinned App Server, native tools, native thread management and approval callbacks. Generated schema source is inspected but not redistributed.",
     "source": "https://github.com/openai/codex/tree/rust-v0.153.4",
     "documentation": "https://learn.chatgpt.com/docs/app-server",
-    "schemaGeneration": "codex app-server generate-json-schema --out <temporary-directory>",
+    "schemaGeneration": "codex app-server generate-json-schema --experimental --out <temporary-directory>",
     "schemaSha256": {
-      "ThreadStartParams": "792e2f32e37cece971bd616664ea2053741acbed4e9c92e9d1766427718f2ecd",
-      "ThreadStartResponse": "656f8fd0fe91f533126cbfdb9369cfab550927a229e48dd46460f6f015d2b186",
-      "TurnStartParams": "a3835e8c1e942e4b358e1a670939b89918b16c4d13105a579899892b7ade6dea",
-      "ThreadReadParams": "dfe040c6ac71d30795b8be3f3ff232e66f362a37f883b491e5d1ea367f470db4"
+      "ThreadStartParams": "25f490368ec6df52a2a3b82a5469d2413307eb93439121b309f415b5648eee7a",
+      "ThreadStartResponse": "a338467af5fc271ace917f9d1262405642c3df3b66116aa105343db86cc9a76d",
+      "TurnStartParams": "b36fb37326b1cf69f75c8b306f1f886d53a57c4b1b985e08e298e2407ea2ad02",
+      "ThreadResumeParams": "324e96004c49de35935cade3386958431c93a4fd3997a839f9796772ea4c8072",
+      "ThreadArchiveParams": "dc2c0b133b814a5d9d543cc37afdb3f4f22feca35b7cea4272834b20a1e47705",
+      "ThreadUnarchiveParams": "a1d5d847b61ea16ab09d5b9d1c1461134a7829292aae02a7e11b0a69b00c76ca",
+      "ThreadListParams": "e321f00bbc81b7e65e8596b8c286deaf2f5c48e76fa179db3abc4ff337d85199",
+      "ThreadTurnsListParams": "2a8b93d7d4437cc25e16a1dde16d8db3c338d39e16c5eece2a56e943a21577d7",
+      "ThreadItemsListParams": "ff56040c327ecdd30ef02affac9bc71fab64031e8980f2b4fea9fd8a888160b4",
+      "ThreadBackgroundTerminalsListParams": "7ac232410d59afd308dca04f8c0b08f20fa6e87f00bd0d3b5892b7ce8b31d2ee",
+      "ThreadBackgroundTerminalsTerminateParams": "4af4973b4e965228e7c6ffdff341c22c227c26bc48d4b44a8696993869b64103"
     }
   },
   "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins"

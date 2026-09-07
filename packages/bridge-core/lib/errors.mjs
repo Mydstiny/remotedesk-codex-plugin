@@ -4,11 +4,11 @@ export class Fault extends Error {
     this.code = code;
   }
 }
-export const requireThat = (condition, code = 'INVALID_REQUEST') => {
+export const requireThat = (condition, code = "INVALID_REQUEST") => {
   if (!condition) throw new Fault(code);
 };
 export const object = (value) =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
+  value !== null && typeof value === "object" && !Array.isArray(value);
 export function fields(value, allowed, required = []) {
   requireThat(
     object(value) &&
@@ -18,7 +18,7 @@ export function fields(value, allowed, required = []) {
 }
 export function string(value, max = 200, pattern) {
   requireThat(
-    typeof value === 'string' &&
+    typeof value === "string" &&
       value.length > 0 &&
       Buffer.byteLength(value) <= max &&
       (!pattern || pattern.test(value)),
