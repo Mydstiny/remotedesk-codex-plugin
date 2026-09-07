@@ -8,22 +8,23 @@ import {requireThat} from './errors.mjs';
 const exec=promisify(execFile),xml=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&apos;');
 const unit=s=>'"'+s.replaceAll('\\','\\\\').replaceAll('"','\\"').replaceAll('%','%%').replaceAll('$','$$')+'"';
 const win=s=>'"'+s.replace(/(\\*)"/g,'$1$1\\"').replace(/(\\+)$/,'$1$1')+'"';
-export function serviceDefinition({engine,entry,state,platform=process.platform,node=process.execPath,user=homedir(),path=process.env.PATH??''}) {
+export function serviceDefinition({engine,entry,state,platform=process.platform,node=process.execPath,user=homedir(),path=process.env.PATH??'',userSid}) {
  requireThat(['codex','dsh'].includes(engine));for(const v of [entry,state,node,user,path])requireThat(typeof v==='string'&&!/[\0\r\n]/.test(v),'SERVICE_VALUE_INVALID');
  const id=`com.remotedesk.${engine}.`+createHash('sha256').update(resolve(state)).digest('hex').slice(0,12),args=[entry,'serve','--state',state],environment={PATH:path,...(process.env.DSH_HOME?{DSH_HOME:process.env.DSH_HOME}:{})};
  if(platform==='darwin')return {id,path:join(user,'Library','LaunchAgents',id+'.plist'),text:`<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>Label</key><string>${id}</string><key>ProgramArguments</key><array>${[node,...args].map(v=>'<string>'+xml(v)+'</string>').join('')}</array><key>EnvironmentVariables</key><dict>${Object.entries(environment).map(([k,v])=>'<key>'+xml(k)+'</key><string>'+xml(v)+'</string>').join('')}</dict><key>RunAtLoad</key><true/><key>KeepAlive</key><false/><key>ProcessType</key><string>Background</string><key>ExitTimeOut</key><integer>45</integer><key>StandardOutPath</key><string>${xml(join(state,'service.log'))}</string><key>StandardErrorPath</key><string>${xml(join(state,'service.log'))}</string></dict></plist>\n`};
  if(platform==='linux')return {id,path:join(user,'.config','systemd','user',id+'.service'),text:`[Unit]\nDescription=RemoteDesk ${engine} bridge\n[Service]\nType=simple\nExecStart=${[node,...args].map(unit).join(' ')}\n${Object.entries(environment).map(([k,v])=>'Environment='+unit(k+'='+v)).join('\n')}\nRestart=no\nTimeoutStopSec=45\nKillMode=control-group\nUMask=0077\n[Install]\nWantedBy=default.target\n`};
- requireThat(platform==='win32','PLATFORM_UNSUPPORTED');
+ requireThat(platform==='win32','PLATFORM_UNSUPPORTED');requireThat(/^S-1-(?:[0-9]+-)*[0-9]+$/.test(userSid??''),'WINDOWS_USER_SID_REQUIRED');
  // InteractiveToken uses the current signed-in user's existing provider access;
  // no stored account password, elevated token, SYSTEM identity, or boot service.
- return {id,path:join(state,'service.xml'),text:`<?xml version="1.0" encoding="UTF-16"?>\n<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers><Principals><Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Enabled>true</Enabled></Settings><Actions Context="Author"><Exec><Command>${xml(node)}</Command><Arguments>${xml(args.map(win).join(' '))}</Arguments><WorkingDirectory>${xml(dirname(entry))}</WorkingDirectory></Exec></Actions></Task>\n`};
+ return {id,path:join(state,'service.xml'),text:`\uFEFF<?xml version="1.0" encoding="UTF-16"?>\n<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Triggers><LogonTrigger><Enabled>true</Enabled><UserId>${xml(userSid)}</UserId></LogonTrigger></Triggers><Principals><Principal id="Author"><UserId>${xml(userSid)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Enabled>true</Enabled></Settings><Actions Context="Author"><Exec><Command>${xml(node)}</Command><Arguments>${xml(args.map(win).join(' '))}</Arguments><WorkingDirectory>${xml(dirname(entry))}</WorkingDirectory></Exec></Actions></Task>\n`};
 }
 export async function service(action,options){
- const def=serviceDefinition(options),platform=process.platform;
+ const platform=process.platform;let userSid;if(platform==='win32')userSid=(await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'],{timeout:15000,windowsHide:true,maxBuffer:4096})).stdout.trim();
+ const def=serviceDefinition({...options,userSid});
  requireThat(['render','install','start','stop','status','uninstall'].includes(action),'SERVICE_ACTION_INVALID');
  if(action==='render')return def;
  const call=(command,args)=>exec(command,args,{timeout:60000,maxBuffer:32000,windowsHide:true});
- const run=async(command,args)=>{try{return (await call(command,args)).stdout;}catch{throw new Error('SERVICE_COMMAND_FAILED_CHECK_NATIVE_MANAGER');}};
+ const run=async(command,args)=>{try{return (await call(command,args)).stdout;}catch(e){options.diagnostic?.({command,action:args[0],code:e.code,stderr:e.stderr});throw new Error('SERVICE_COMMAND_FAILED_CHECK_NATIVE_MANAGER');}};
  const target=`gui/${process.getuid?.()}/${def.id}`,record=join(options.state,'service.json');
  const exists=async()=>{
   if(platform==='darwin'){try{await call('launchctl',['print',target]);return true;}catch(e){if(e.code===113)return false;throw new Error('SERVICE_MANAGER_UNAVAILABLE');}}
@@ -32,7 +33,7 @@ export async function service(action,options){
   const value=await run('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(query,'utf16le').toString('base64')]);requireThat(['EXISTS','ABSENT'].includes(value.trim()),'SERVICE_MANAGER_UNAVAILABLE');return value.trim()==='EXISTS';
  };
  let registered;try{registered=JSON.parse(await readFile(record,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
- if(registered)requireThat(registered.id===def.id&&registered.path===def.path&&registered.entry===options.entry&&registered.node===process.execPath,'SERVICE_REGISTRATION_MISMATCH');
+ if(registered)requireThat(registered.id===def.id&&registered.path===def.path&&(action!=='install'||(registered.entry===options.entry&&registered.node===process.execPath)),'SERVICE_REGISTRATION_MISMATCH');
  if(action==='install'){
   await mkdir(dirname(def.path),{recursive:true});
   if(!registered){requireThat(!await exists(),'SERVICE_ALREADY_REGISTERED');registered={id:def.id,path:def.path,entry:options.entry,node:process.execPath,environment:{PATH:process.env.PATH??'',...(process.env.DSH_HOME?{DSH_HOME:process.env.DSH_HOME}:{})}};await writeFile(record,JSON.stringify(registered),{mode:0o600,flag:'wx'});}
@@ -69,7 +70,13 @@ export async function requestStop(state){
  try{process.kill(owner.pid,0);}catch(e){if(e.code==='ESRCH')throw new Error('SERVICE_CRASHED_RECOVER_REQUIRED');throw e;}
  await writeFile(request,JSON.stringify({pid:owner.pid}),{mode:0o600});
  const end=Date.now()+45000;
- while(Date.now()<end){try{await readFile(lock);}catch(e){if(e.code==='ENOENT')return;throw e;}await new Promise(r=>setTimeout(r,200));}
+ while(Date.now()<end){
+  let current;try{current=JSON.parse(await readFile(lock,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+  requireThat(!current||current.pid===owner.pid,'SERVICE_PROCESS_CHANGED');
+  let alive=true;try{process.kill(owner.pid,0);}catch(e){if(e.code==='ESRCH')alive=false;else throw e;}
+  if(!alive){requireThat(!current,'SERVICE_CRASHED_RECOVER_REQUIRED');return;}
+  await new Promise(r=>setTimeout(r,200));
+ }
  throw new Error('SERVICE_STOP_DID_NOT_SETTLE');
 }
 export function watchStopRequests(state){
