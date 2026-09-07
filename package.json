@@ -1,0 +1,35 @@
+{
+  "name": "@remotedesk/codex-plugin",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "remotedesk-codex": "bin/remotedesk-codex.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "doctor": "node bin/remotedesk-codex.mjs doctor --json",
+    "probe": "node bin/remotedesk-codex.mjs probe --json"
+  },
+  "files": [
+    ".codex-plugin",
+    "bin",
+    "src",
+    "packages",
+    "skills",
+    "docs",
+    "compatibility.json",
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "NOTICE",
+    "test",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md"
+  ]
+}

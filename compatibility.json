@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "adapterVersion": "0.1.0-alpha.1",
+  "stage": "AI0",
+  "codexVersions": ["0.153.4"],
+  "testedPlatform": "darwin-arm64",
+  "testedNode": "26.4.0",
+  "remoteAccess": false,
+  "protocolMajor": 1,
+  "wireProtocolFrozen": false,
+  "entitlement": "pro.lifetime"
+}

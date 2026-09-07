@@ -1,0 +1,18 @@
+{
+  "name": "remotedesk-codex-plugin",
+  "version": "0.1.0-alpha.1",
+  "description": "RemoteDesk Codex AI0 compatibility and App Server probes; remote access is not enabled.",
+  "author": {
+    "name": "Mydstiny"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RemoteDesk Codex",
+    "shortDescription": "Check RemoteDesk Codex integration readiness.",
+    "longDescription": "Run local compatibility and App Server probes for the RemoteDesk Pro AI workspace. AI0 only; no remote listener or pairing yet.",
+    "developerName": "Mydstiny",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Read the RemoteDesk setup skill and check the local Codex integration readiness."
+  }
+}
