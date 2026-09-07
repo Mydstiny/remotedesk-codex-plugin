@@ -30,9 +30,10 @@ export async function privateDirectory(directory, { create = false, empty = fals
         '-EncodedCommand',
         Buffer.from(prelude + (create ? set : '') + check + end, 'utf16le').toString('base64'),
       ],
-      { windowsHide: true, timeout: 15000, maxBuffer: 16384 },
+      { windowsHide: true, timeout: 60000, maxBuffer: 16384 },
     );
   } catch (e) {
+    if (e.killed) throw new Fault('PRIVATE_DIRECTORY_ACL_TIMEOUT');
     const code = /REMOTEDESK_ACL_([A-Z]+)_(\w+)/.exec(e.stderr ?? '');
     throw new Fault('PRIVATE_DIRECTORY_ACL_FAILED' + (code ? '_' + code[1] + '_' + code[2] : ''));
   }
