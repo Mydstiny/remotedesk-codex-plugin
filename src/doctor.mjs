@@ -8,7 +8,7 @@ import { StdioRpc, BridgeError } from '../packages/bridge-core/stdio-rpc.mjs';
 const exec = promisify(execFile);
 const compatibility = JSON.parse(await readFile(new URL('../compatibility.json', import.meta.url)));
 
-export async function doctor({ probe = false, command = 'codex' } = {}) {
+export async function doctor({ probe = false, command = 'codex', signal } = {}) {
   const report = {
     schemaVersion: 1, status: 'blocked', changed: false,
     componentVersions: { adapter: compatibility.adapterVersion, node: process.versions.node, codex: null },
@@ -19,9 +19,11 @@ export async function doctor({ probe = false, command = 'codex' } = {}) {
   const check = (id, status, code) => report.checks.push({ id, status, code });
   let directory;
   let rpc;
+  const abortRpc = () => { if (rpc) void rpc.close().catch(() => {}); };
   try {
+    if (signal?.aborted) throw new BridgeError('PROBE_CANCELLED');
     if (Number(process.versions.node.split('.')[0]) < 22) throw new BridgeError('NODE_VERSION_UNSUPPORTED');
-    const { stdout } = await exec(command, ['--version'], { timeout: 5000, maxBuffer: 4096, windowsHide: true });
+    const { stdout } = await exec(command, ['--version'], { timeout: 5000, maxBuffer: 4096, windowsHide: true, signal });
     const version = /^codex(?:-cli)?\s+(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*$/m.exec(stdout)?.[1];
     report.componentVersions.codex = version ?? null;
     if (!compatibility.codexVersions.includes(version)) throw new BridgeError('CODEX_VERSION_UNVERIFIED');
@@ -29,6 +31,8 @@ export async function doctor({ probe = false, command = 'codex' } = {}) {
     if (probe) {
       directory = await mkdtemp(join(tmpdir(), 'remotedesk-codex-probe-'));
       rpc = new StdioRpc(command, ['app-server'], { cwd: directory });
+      signal?.addEventListener('abort', abortRpc, { once: true });
+      if (signal?.aborted) abortRpc();
       const initialized = await rpc.request('initialize', {
         clientInfo: { name: 'remotedesk_ai0_probe', title: 'RemoteDesk AI0 Probe', version: compatibility.adapterVersion },
         capabilities: { experimentalApi: false }
@@ -48,11 +52,15 @@ export async function doctor({ probe = false, command = 'codex' } = {}) {
     }
     report.status = 'ok';
   } catch (error) {
-    const code = error instanceof BridgeError ? error.code : 'LOCAL_PROBE_FAILED';
+    const code = signal?.aborted ? 'PROBE_CANCELLED' : error instanceof BridgeError ? error.code : 'LOCAL_PROBE_FAILED';
     check('probe', 'fail', code);
     report.requiresUserAction.push('CHECK_COMPATIBILITY_AND_LOCAL_ENGINE');
   } finally {
-    if (rpc) await rpc.close();
+    signal?.removeEventListener('abort', abortRpc);
+    if (rpc) {
+      try { await rpc.close(); }
+      catch { report.status = 'blocked'; check('cleanup', 'fail', 'PROCESS_CLEANUP_UNCONFIRMED'); }
+    }
     if (directory) await rm(directory, { recursive: true, force: true });
   }
   return report;

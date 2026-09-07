@@ -32,11 +32,13 @@ npm pack --dry-run --ignore-scripts
 | EXECUTION_PROFILE_MISMATCH | 上游未确认所要求的设置；停止，不自动放宽 |
 | REQUEST_TIMEOUT_RECONCILE | 请求结果未知，所有挂起请求结束；禁止自动重发 |
 | INVALID_FRAME / FRAME_TOO_LARGE | 协议内容或限额不符，连接已关闭 |
+| PROCESS_CLEANUP_UNCONFIRMED | 本次启动的进程组未在有界清理期限内确认退出，需人工检查本次进程，不能全局终止 Codex |
+| WINDOWS_PROCESS_TREE_NOT_VERIFIED | 当前 stdio 探针未实现经验证的 Windows 进程树清理；只做版本诊断 |
 
 无账户/凭据诊断由此工具执行，doctor 通过也不能证明已登录、额度可用或模型可执行。
 
 ## 停止、卸载与后续
 
-命令正常结束即停止；中断命令后检查该次子进程是否已退出。当前没有安装器、launchd/systemd/Windows 服务、开机启动、配对证书或防火墙修改。卸载当前源码工具只需移除本次副本，保留官方 Codex 与用户数据。
+命令正常结束即停止。SIGINT / SIGTERM 会触发同样的有界清理（退出码 130 / 143）：先终止本次专属 POSIX 进程组，再处理不退出的成员；不使用全局 pkill。主动脱离该进程组的程序不属于已验证的清理范围，因此当前没有模型/工具执行。当前没有安装器、launchd/systemd/Windows 服务、开机启动、配对证书或防火墙修改。卸载当前源码工具只需移除本次副本，保留官方 Codex 与用户数据。
 
 标准插件 manifest 与 `skills/remotedesk-setup` 已包含源码诊断流程，但本 alpha 没有发布到插件市场，不修改用户本地 marketplace。发布后的正式安装与更新流程会单独验证。

@@ -18,25 +18,54 @@ export class StdioRpc extends EventEmitter {
   #maxPending;
   #timeoutMs;
   #killTimer;
+  #closeTimer;
+  #resolveClose;
+  #directExited = false;
+  #cleanupStarted = false;
 
   constructor(command, args = [], { cwd, timeoutMs = 15000, maxFrameBytes = 1048576, maxPending = 32 } = {}) {
     super();
     if (![timeoutMs, maxFrameBytes, maxPending].every(v => Number.isSafeInteger(v) && v > 0)) {
       throw new BridgeError('INVALID_LIMIT');
     }
+    if (process.platform === 'win32') throw new BridgeError('WINDOWS_PROCESS_TREE_NOT_VERIFIED');
     this.#maxFrameBytes = maxFrameBytes;
     this.#maxPending = maxPending;
     this.#timeoutMs = timeoutMs;
-    this.#child = spawn(command, args, { cwd, shell: false, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
-    this.#exited = new Promise(resolve => this.#child.once('close', () => {
-      clearTimeout(this.#killTimer);
+    // A dedicated POSIX group owns only this launch and its descendants.
+    // This is not a background service: close always signals the whole group.
+    this.#child = spawn(command, args, { cwd, shell: false, detached: true, stdio: ['pipe', 'pipe', 'ignore'] });
+    this.#exited = new Promise(resolve => { this.#resolveClose = resolve; });
+    this.#child.once('exit', () => { this.#directExited = true; this.#fail('PROCESS_CLOSED'); });
+    this.#child.once('close', () => {
+      this.#directExited = true;
       this.#fail('PROCESS_CLOSED');
-      resolve();
-    }));
-    this.#child.once('error', () => this.#fail('PROCESS_START_FAILED'));
+      // Pipe closure alone does not prove descendants exited. Keep the group
+      // cleanup timer if any owned group member remains.
+      if (!this.#groupExists()) this.#finishClose(true);
+    });
+    this.#child.once('error', () => { this.#directExited = true; this.#fail('PROCESS_START_FAILED'); });
     this.#child.stdin.on('error', () => this.#fail('TRANSPORT_WRITE_FAILED'));
     this.#child.stdout.on('error', () => this.#fail('TRANSPORT_READ_FAILED'));
     this.#child.stdout.on('data', chunk => this.#consume(chunk));
+  }
+
+  #groupExists() {
+    if (!this.#child.pid) return false;
+    try { process.kill(-this.#child.pid, 0); return true; }
+    catch (error) { return error.code !== 'ESRCH'; }
+  }
+
+  #signalGroup(signal) {
+    if (!this.#child.pid) return;
+    try { process.kill(-this.#child.pid, signal); }
+    catch { /* The bounded close check reports any remaining launch. */ }
+  }
+
+  #finishClose(success) {
+    clearTimeout(this.#killTimer);
+    clearTimeout(this.#closeTimer);
+    this.#resolveClose(success);
   }
 
   #fail(code) {
@@ -49,11 +78,15 @@ export class StdioRpc extends EventEmitter {
     }
     this.#pending.clear();
     this.#child.stdin.destroy();
-    if (this.#child.exitCode === null && this.#child.signalCode === null) {
-      this.#child.kill('SIGTERM');
-      this.#killTimer = setTimeout(() => this.#child.kill('SIGKILL'), 1000);
-      this.#killTimer.unref();
-    }
+    if (this.#cleanupStarted) return;
+    this.#cleanupStarted = true;
+    this.#signalGroup('SIGTERM');
+    this.#killTimer = setTimeout(() => {
+      this.#signalGroup('SIGKILL');
+      // Escaped descendants must not hold the inherited pipe open forever.
+      this.#child.stdout.destroy();
+      this.#closeTimer = setTimeout(() => this.#finishClose(this.#directExited && !this.#groupExists()), 500);
+    }, 1000);
   }
 
   #consume(chunk) {
@@ -128,5 +161,8 @@ export class StdioRpc extends EventEmitter {
   }
 
   notify(method, params = {}) { this.#write({ method, params }); }
-  async close() { this.#fail('TRANSPORT_CLOSED'); await this.#exited; }
+  async close() {
+    this.#fail('TRANSPORT_CLOSED');
+    if (!await this.#exited) throw new BridgeError('PROCESS_CLEANUP_UNCONFIRMED');
+  }
 }

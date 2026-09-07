@@ -13,3 +13,8 @@ test('missing executable returns sanitized diagnostic without a path', async () 
   assert.equal(report.status, 'blocked');
   assert.ok(!JSON.stringify(report).includes('SECRET_SENTINEL'));
 });
+test('an aborted probe starts no engine', async () => {
+  const controller = new AbortController(); controller.abort();
+  const report = await doctor({ command: '/nonexistent/SHOULD_NOT_START', signal: controller.signal, probe: true });
+  assert.equal(report.checks.at(-1).code, 'PROBE_CANCELLED');
+});

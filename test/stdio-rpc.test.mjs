@@ -41,3 +41,11 @@ test('rejects missing executable without exposing path', async t => {
   t.after(() => rpc.close());
   await assert.rejects(rpc.request('test'), { code: 'PROCESS_START_FAILED' });
 });
+test('bounds cleanup and kills owned descendants that inherit stdout and ignore SIGTERM', async t => {
+  const rpc = fixture(t, 'descendant');
+  const children = await rpc.request('launch');
+  const start = Date.now();
+  await rpc.close();
+  assert.ok(Date.now() - start < 2500);
+  for (const pid of children) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+});
