@@ -1,9 +1,5 @@
-# RemoteDesk AI Bridge Protocol — AI0 boundary
+# Canonical RemoteDesk Bridge Protocol v1
 
-Protocol v1 is not frozen or served by this alpha. This directory will own canonical wire schemas and test vectors for both adapters and HarmonyOS. The internal stdio transport is not the remote protocol.
+The schemas in this directory and ../../docs/protocol.md define the shared protocol used by both host adapters. The DSH release embeds the same bridge-core version and records its source commit and tarball checksum in provenance. Adapter transcript/event payloads remain engine-specific; clients dispatch on the handshake engine and ignore unknown additive event types. Major breaking changes require protocol v2.
 
-Fixed design constraints: authenticated device and service identity before business handshake; separate authorization generation, adapter epoch and event cursor; exact live approval ownership; project visibility distinct from actual tool/shell/MCP execution confinement; revocation closes subscriptions and rejects old replies; account/Pro revocation does not cancel unrelated local tasks.
-
-Submission epochs will be signed/recognized, valid for at most 24 hours, with accepted-operation deduplication retained until at least 7 days after expiry. Unknown, expired or recycled epochs require reconciliation and must not re-execute. The client must not silently replace an unresolved operation's epoch/ID after disconnect. Persist enough rejection state to refuse old epochs after storage cleanup or service reset.
-
-None of these planned storage/authentication guarantees is implemented by the AI0 probe. Do not import this document as an implemented capability manifest.
+These schemas document JSON shapes; the implementation also enforces UTF-8 byte limits, TLS identity, persistent epochs, leases, project authorization, attachment expiry and engine constraints. Retry the original operation packet; do not reorder or regenerate its params. The native engine stdio/Host API is not the network protocol.

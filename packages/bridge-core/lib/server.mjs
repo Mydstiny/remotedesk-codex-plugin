@@ -213,6 +213,14 @@ export class Bridge {
     await this.starting?.catch(()=>{});clearInterval(this.monitor);
     for(const a of [...this.asks.values()])a.reject();for(const s of this.streams.values())s.res.destroy();
     if(this.server)await new Promise(r=>{this.server.close(r);this.server.closeAllConnections();});
-    try {await this.adapter.close();await Promise.allSettled([...this.requests]);await this.projectLocks?.close();}finally{this.store?.close();await this.lock?.close();if(this.lock)await unlink(this.lockPath).catch(()=>{});}
+    let failure;
+    try{await this.adapter.close();}catch(e){failure=e;}
+    await Promise.allSettled([...this.requests]);
+    if(!failure)try{await this.projectLocks?.close();}catch(e){failure=e;}
+    this.store?.close();await this.lock?.close();
+    // Preserve both service/writer locks when engine or container quiescence
+    // cannot be confirmed. A later dead-process recovery owns their release.
+    if(this.lock&&!failure)await unlink(this.lockPath);
+    if(failure)throw failure;
   }
 }

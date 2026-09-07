@@ -24,7 +24,7 @@ retry: --client <directory> --operation <original operation id>
 watch: --client <directory> --cursor <snapshot cursor>
 `;
 export async function main({engine,doctor,serve,entry,extra},argv=process.argv.slice(2)){
- const command=argv.shift();const o={};const valid=new Set(['state','host','hosts','port','id','path','title','provider','model','image','vision','projects','out','role','device','action','client','url','invite','servername','name','method','params','operation','cursor','runtime-root','profile','package']);
+ const command=argv.shift();const o={};const valid=new Set(['state','host','hosts','port','id','path','title','provider','model','image','vision','projects','out','role','device','action','client','url','invite','servername','name','method','params','operation','cursor','runtime-root','profile','package','web-port']);
  try{
   for(let i=0;i<argv.length;i++){if(argv[i]==='--json')continue;const key=argv[i].slice(2);requireThat(argv[i].startsWith('--')&&valid.has(key)&&!(key in o)&&argv[i+1]&&!argv[i+1].startsWith('--'),'CLI_ARGUMENT_INVALID');o[key]=argv[++i];}
   if(!command||command==='help'){console.log(help);return;}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RemoteDesk RPC response",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "result": {}
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "type": "object",
+          "properties": {
+            "operationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "status": {
+              "enum": [
+                "dispatching",
+                "succeeded",
+                "rejected",
+                "unknown"
+              ]
+            },
+            "created": {
+              "type": "integer"
+            },
+            "epoch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "result": {},
+            "error": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "operationId",
+            "status",
+            "created",
+            "epoch"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

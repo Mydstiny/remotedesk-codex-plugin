@@ -5,7 +5,7 @@ export async function fixtureProvider(decide) {
  const server=http.createServer(async(req,res)=>{
   try {
    let bytes=0;const chunks=[];for await(const c of req){bytes+=c.length;if(bytes>4000000)throw new Error('FIXTURE_LIMIT');chunks.push(c);}
-   const request=JSON.parse(Buffer.concat(chunks));calls.push({path:req.url,tools:request.tools?.map(t=>({name:t.name,type:t.type,namespace:t.namespace})),toolResults:request.input?.filter(i=>i.type==='function_call_output').map(i=>i.output)});
+   const request=JSON.parse(Buffer.concat(chunks));calls.push({images:request.input?.flatMap(i=>i.content??[]).filter(i=>i.type==='input_image').length??0,path:req.url,tools:request.tools?.map(t=>({name:t.name,type:t.type,namespace:t.namespace})),toolResults:request.input?.filter(i=>i.type==='function_call_output').map(i=>i.output)});
    const result=await decide(request,calls.length);
    if(result.hang){req.socket.on('close',()=>{});return;}
    const responseId='resp_'+randomUUID(), item=result.call?{id:'fc_'+randomUUID(),type:'function_call',status:'completed',call_id:'call_'+randomUUID(),name:result.call.name,arguments:JSON.stringify(result.call.arguments)}:{id:'msg_'+randomUUID(),type:'message',status:'completed',role:'assistant',content:[{type:'output_text',text:result.text??'fixture complete',annotations:[]}]};
