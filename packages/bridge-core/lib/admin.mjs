@@ -25,11 +25,12 @@ export async function init(directory, { engine, hosts = ['localhost', '127.0.0.1
 }
 export async function configuration(directory) { return JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')); }
 export async function addProject(directory, input) {
-  fields(input, ['id', 'path', 'title', 'provider', 'model', 'image'], ['id', 'path']); identifier(input.id);
+  fields(input, ['id', 'path', 'title', 'provider', 'model', 'image', 'vision'], ['id', 'path']); identifier(input.id);
   const path = await realpath(input.path); requireThat((await stat(path)).isDirectory());
   const state = await realpath(directory); requireThat(!inside(path, state) && !inside(state, path), 'STATE_PROJECT_OVERLAP');
   const c = await configuration(directory); requireThat(!c.projects.some(p => p.id === input.id) && c.projects.length < 32, 'PROJECT_EXISTS_OR_LIMIT');
   const project = { id: input.id, path, title: string(input.title ?? input.id), ...(input.provider ? { provider: string(input.provider) } : {}), ...(input.model ? { model: string(input.model) } : {}) };
+  if(input.vision!==undefined){requireThat(typeof input.vision==='boolean');project.vision=input.vision;}
   if (input.image) project.image = string(input.image, 300, /^(?:[a-zA-Z0-9./:_-]+@)?sha256:[a-f0-9]{64}$/);
   c.projects.push(project); await writeFile(join(directory, 'config.json'), JSON.stringify(c, null, 2) + '\n', { mode: 0o600 });
   return { projectId: input.id, restartRequired: true };

@@ -42,9 +42,9 @@ export class DockerExecutor {
    await this.docker(args,{signal});
    let output;
    try{output=await this.docker(['start','--attach',name],{timeout:180000,signal,maxBuffer:1048576});}
-   catch(e){if(signal?.aborted)throw new Fault('EXECUTION_CANCELLED');if(e.killed||e.code==='ERR_CHILD_PROCESS_STDIO_MAXBUFFER')throw new Fault('EXECUTION_LIMIT');throw new Fault('CONTAINER_EXECUTION_FAILED');}
-   const status=Number((await this.docker(['inspect',name,'--format','{{.State.ExitCode}}'])).stdout.trim());
-   return {exitCode:status,stdout:output.stdout,stderr:output.stderr};
+   catch(e){if(signal?.aborted)throw new Fault('EXECUTION_CANCELLED');if(e.killed||e.code==='ERR_CHILD_PROCESS_STDIO_MAXBUFFER')throw new Fault('EXECUTION_LIMIT');if(Number.isInteger(e.code))output={stdout:e.stdout??'',stderr:e.stderr??''};else throw new Fault('CONTAINER_EXECUTION_FAILED');}
+   const status=JSON.parse((await this.docker(['inspect',name,'--format','{{json .State}}'])).stdout);requireThat(status.Status==='exited'&&Number.isInteger(status.ExitCode),'CONTAINER_DID_NOT_EXIT');
+   return {exitCode:status.ExitCode,stdout:output.stdout,stderr:output.stderr};
   }finally{await this.cleanup(name);}
  }
 }

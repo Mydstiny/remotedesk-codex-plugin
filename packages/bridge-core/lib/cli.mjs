@@ -22,7 +22,7 @@ retry: --client <directory> --operation <original operation id>
 watch: --client <directory> --cursor <snapshot cursor>
 `;
 export async function main({engine,doctor,serve,entry,extra},argv=process.argv.slice(2)){
- const command=argv.shift();const o={};const valid=new Set(['state','host','hosts','port','id','path','title','provider','model','image','projects','out','role','device','action','client','url','invite','servername','name','method','params','operation','cursor','runtime-root','profile','package']);
+ const command=argv.shift();const o={};const valid=new Set(['state','host','hosts','port','id','path','title','provider','model','image','vision','projects','out','role','device','action','client','url','invite','servername','name','method','params','operation','cursor','runtime-root','profile','package']);
  try{
   for(let i=0;i<argv.length;i++){if(argv[i]==='--json')continue;const key=argv[i].slice(2);requireThat(argv[i].startsWith('--')&&valid.has(key)&&!(key in o)&&argv[i+1]&&!argv[i+1].startsWith('--'),'CLI_ARGUMENT_INVALID');o[key]=argv[++i];}
   if(!command||command==='help'){console.log(help);return;}
@@ -38,7 +38,7 @@ export async function main({engine,doctor,serve,entry,extra},argv=process.argv.s
    requireThat(o.cursor!==undefined,'SNAPSHOT_CURSOR_REQUIRED');const controller=new AbortController();process.once('SIGINT',()=>controller.abort());process.once('SIGTERM',()=>controller.abort());try{await client.events({cursor:Number(o.cursor),runtime:handshake.runtime,signal:controller.signal,onEvent:e=>console.log(JSON.stringify(e))});}catch(e){if(!controller.signal.aborted)throw e;}return;
   }
   await privateDirectory(state);const config=await configuration(state);requireThat(config.engine===engine,'ENGINE_STATE_MISMATCH');
-  if(command==='project-add'){const input={id:o.id,path:o.path};for(const k of ['title','provider','model','image'])if(o[k])input[k]=o[k];print(await addProject(state,input));return;}
+  if(command==='project-add'){const input={id:o.id,path:o.path};for(const k of ['title','provider','model','image','vision'])if(o[k])input[k]=o[k];if(o.vision!==undefined){requireThat(['on','off'].includes(o.vision),'VISION_VALUE_INVALID');input.vision=o.vision==='on';}print(await addProject(state,input));return;}
   if(command==='invite'){requireThat(o.projects&&o.out,'INVITE_ARGUMENTS_REQUIRED');const file=resolve(o.out);requireThat(file.startsWith(state+ (process.platform==='win32'?'\\':'/')),'INVITE_OUTPUT_MUST_BE_IN_PRIVATE_STATE');await writeFile(file,JSON.stringify(await invite(state,{projects:o.projects.split(','),role:o.role}),null,2)+'\n',{mode:0o600,flag:'wx'});print({inviteFile:file,expiresInSeconds:120});return;}
   if(command==='revoke'){requireThat(o.device,'DEVICE_REQUIRED');print(revoke(state,o.device));return;}
   if(command==='status'){print(status(state));return;}
