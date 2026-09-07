@@ -1,0 +1,29 @@
+{
+  "name": "@remotedesk/bridge-core",
+  "version": "0.2.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "exports": {
+    ".": "./lib/server.mjs",
+    "./admin": "./lib/admin.mjs",
+    "./client": "./lib/client.mjs",
+    "./errors": "./lib/errors.mjs",
+    "./cli": "./lib/cli.mjs",
+    "./service": "./lib/service.mjs",
+    "./store": "./lib/store.mjs",
+    "./privacy": "./lib/privacy.mjs",
+    "./docker": "./lib/docker-executor.mjs",
+    "./workspace-tools": "./lib/workspace-tools.mjs",
+    "./execution-fence": "./lib/execution-fence.mjs",
+    "./lifecycle-lock": "./lib/lifecycle-lock.mjs"
+  },
+  "files": [
+    "lib",
+    "LICENSE",
+    "README.md",
+    "sandbox"
+  ]
+}

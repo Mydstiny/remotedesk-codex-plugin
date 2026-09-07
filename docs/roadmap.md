@@ -1,15 +1,7 @@
-# 实施状态
+# Delivery boundary
 
-| 阶段 | 当前状态 |
-| --- | --- |
-| AI0 上游接口与安全验证 | 已开始；版本探针与本地生命周期验证，执行隔离及真实回合待补 |
-| AI1 统一协议/配对/事件与请求存储 | 未完成；协议 v1 尚未冻结 |
-| AI2 Codex 常驻桥接 | 未完成 |
-| AI3 DSH 原生远程适配 | 未完成；现有插件仅诊断 |
-| AI4 鸿蒙 Pro 工作台 | 未完成，由 HarmonyOS 仓库实现 |
-| AI5 双后端局域网验收 | 未完成 |
-| AI6/AI7 用户自建 RustDesk 隧道与验收 | 后续阶段 |
+0.2.0 delivers the host protocol, both native adapters, project execution container, CLI pairing/controller, local service lifecycle, source tests and pinned-engine runtime tests. The protocol is version 1; any breaking wire change requires a new major protocol version.
 
-鸿蒙付费入口统一归属 `pro.lifetime`，Codex、DSH 与后续 RustDesk 连接不另拆购买项。插件自身不会伪造或颁发鸿蒙购买权益。当前未开放任何付费功能。
+The next separate task is the HarmonyOS Pro workbench: UI, on-device certificate storage, controller lease renewal, event reconnection, approvals, account entitlement integration and device acceptance. After LAN device acceptance, integrate the user's authenticated self-hosted RustDesk TCP port-forward route. Neither a public relay nor a generic hbbr HTTP proxy is provided by these plugins.
 
-公共协议与不依赖后端的库放在 Codex 仓库 `packages/protocol` / `packages/bridge-core`；DSH 将依赖固定版本产物，不复制实现，也不要求 DSH 用户安装 Codex。当前协议文档只是 AI0 决策边界，没有可用网络 API。
+ZCode and broader native-engine tool surfaces remain outside this version.

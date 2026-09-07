@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RemoteDesk SSE data",
+  "type": "object",
+  "properties": {
+    "cursor": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "session": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "runtime": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["cursor", "session", "project", "runtime", "event"],
+  "additionalProperties": false
+}

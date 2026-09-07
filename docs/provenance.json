@@ -1,13 +1,31 @@
 {
   "schemaVersion": 1,
   "recordedDate": "2026-09-07",
+  "adapterVersion": "0.2.0",
   "originalCodeLicense": "MIT",
+  "ciActions": {
+    "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020"
+  },
+  "executionImage": {
+    "dockerfile": "packages/bridge-core/sandbox/Dockerfile",
+    "dockerfileSha256": "b2e361935df53ef9a12d05c63795fc7cabb52d369404404f0dc1c881a4121d76",
+    "baseImage": "node:26.4.0-bookworm-slim@sha256:ec82d089a8ae2cf02628da7b34ea57dc357b24db724d557fe2d240e6beb659c1",
+    "redistributed": false,
+    "buildNote": "The base is content-pinned. apt package resolution during image build can change; deployments pin the resulting immutable local image ID. No built image is included in this package."
+  },
+  "externalPrerequisites": [
+    "Node.js >=22.16",
+    "OpenSSL 3",
+    "local Docker with Linux containers"
+  ],
+  "modelFixture": "Original deterministic test responses; no model weights, credentials or user transcripts are included.",
   "redistributedDependencies": [],
   "upstream": {
     "name": "Codex CLI",
     "version": "0.153.4",
-    "use": "external executable and public App Server protocol",
-    "source": "https://github.com/openai/codex",
+    "use": "Externally installed pinned App Server. Empty native environments, controlled tool catalog, three original dynamic tools. Generated upstream schemas are inspected but not redistributed.",
+    "source": "https://github.com/openai/codex/tree/rust-v0.153.4",
     "documentation": "https://learn.chatgpt.com/docs/app-server",
     "schemaGeneration": "codex app-server generate-json-schema --out <temporary-directory>",
     "schemaSha256": {
@@ -17,9 +35,5 @@
       "ThreadReadParams": "dfe040c6ac71d30795b8be3f3ff232e66f362a37f883b491e5d1ea367f470db4"
     }
   },
-  "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins",
-  "ciActions": {
-    "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
-    "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020"
-  }
+  "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins"
 }
