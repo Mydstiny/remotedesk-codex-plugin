@@ -2,18 +2,12 @@
   "schemaVersion": 1,
   "adapterVersion": "0.2.0",
   "stage": "host-v1",
-  "codexVersions": [
-    "0.153.4"
-  ],
+  "codexVersions": ["0.153.4"],
   "testedPlatform": "darwin-arm64",
   "testedNode": "26.4.0",
   "remoteAccess": true,
   "protocolMajor": 1,
   "wireProtocolFrozen": true,
   "entitlement": "pro.lifetime",
-  "platforms": [
-    "darwin",
-    "linux",
-    "win32"
-  ]
+  "platforms": ["darwin", "linux", "win32"]
 }

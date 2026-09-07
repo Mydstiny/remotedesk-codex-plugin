@@ -33,18 +33,10 @@
           "maxLength": 200
         }
       },
-      "required": [
-        "type"
-      ],
+      "required": ["type"],
       "additionalProperties": true
     }
   },
-  "required": [
-    "cursor",
-    "session",
-    "project",
-    "runtime",
-    "event"
-  ],
+  "required": ["cursor", "session", "project", "runtime", "event"],
   "additionalProperties": false
 }

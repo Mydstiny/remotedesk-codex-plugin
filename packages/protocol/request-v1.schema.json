@@ -16,16 +16,11 @@
               "const": 1
             }
           },
-          "required": [
-            "version"
-          ],
+          "required": ["version"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -41,10 +36,7 @@
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -63,16 +55,11 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
-          "required": [
-            "projectId"
-          ],
+          "required": ["projectId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -96,16 +83,11 @@
               "maxLength": 4000
             }
           },
-          "required": [
-            "sessionId"
-          ],
+          "required": ["sessionId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -124,16 +106,11 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
-          "required": [
-            "operationId"
-          ],
+          "required": ["operationId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -152,16 +129,11 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
-          "required": [
-            "sessionId"
-          ],
+          "required": ["sessionId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -180,16 +152,11 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
-          "required": [
-            "sessionId"
-          ],
+          "required": ["sessionId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "method",
-        "params"
-      ],
+      "required": ["method", "params"],
       "additionalProperties": false
     },
     {
@@ -213,9 +180,7 @@
               "maxLength": 200
             }
           },
-          "required": [
-            "projectId"
-          ],
+          "required": ["projectId"],
           "additionalProperties": false
         },
         "operationId": {
@@ -230,12 +195,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -259,10 +219,7 @@
               "maxLength": 100
             }
           },
-          "required": [
-            "sessionId",
-            "lease"
-          ],
+          "required": ["sessionId", "lease"],
           "additionalProperties": false
         },
         "operationId": {
@@ -277,12 +234,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -306,10 +258,7 @@
               "maxLength": 100
             }
           },
-          "required": [
-            "sessionId",
-            "lease"
-          ],
+          "required": ["sessionId", "lease"],
           "additionalProperties": false
         },
         "operationId": {
@@ -324,12 +273,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -348,9 +292,7 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
-          "required": [
-            "sessionId"
-          ],
+          "required": ["sessionId"],
           "additionalProperties": false
         },
         "operationId": {
@@ -365,12 +307,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -394,10 +331,7 @@
               "maxLength": 100
             }
           },
-          "required": [
-            "sessionId",
-            "lease"
-          ],
+          "required": ["sessionId", "lease"],
           "additionalProperties": false
         },
         "operationId": {
@@ -412,12 +346,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -441,10 +370,7 @@
               "maxLength": 100
             }
           },
-          "required": [
-            "sessionId",
-            "lease"
-          ],
+          "required": ["sessionId", "lease"],
           "additionalProperties": false
         },
         "operationId": {
@@ -459,12 +385,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -503,11 +424,7 @@
               "maxItems": 4
             }
           },
-          "required": [
-            "sessionId",
-            "lease",
-            "text"
-          ],
+          "required": ["sessionId", "lease", "text"],
           "additionalProperties": false
         },
         "operationId": {
@@ -522,12 +439,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -556,11 +468,7 @@
               "maxLength": 128000
             }
           },
-          "required": [
-            "sessionId",
-            "lease",
-            "text"
-          ],
+          "required": ["sessionId", "lease", "text"],
           "additionalProperties": false
         },
         "operationId": {
@@ -575,12 +483,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -604,10 +507,7 @@
               "maxLength": 100
             }
           },
-          "required": [
-            "sessionId",
-            "lease"
-          ],
+          "required": ["sessionId", "lease"],
           "additionalProperties": false
         },
         "operationId": {
@@ -622,12 +522,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -662,16 +557,10 @@
                   "type": "object",
                   "properties": {
                     "decision": {
-                      "enum": [
-                        "accept",
-                        "decline",
-                        "cancel"
-                      ]
+                      "enum": ["accept", "decline", "cancel"]
                     }
                   },
-                  "required": [
-                    "decision"
-                  ],
+                  "required": ["decision"],
                   "additionalProperties": false
                 },
                 {
@@ -683,20 +572,13 @@
                       "maxLength": 16000
                     }
                   },
-                  "required": [
-                    "text"
-                  ],
+                  "required": ["text"],
                   "additionalProperties": false
                 }
               ]
             }
           },
-          "required": [
-            "sessionId",
-            "lease",
-            "approvalId",
-            "answer"
-          ],
+          "required": ["sessionId", "lease", "approvalId", "answer"],
           "additionalProperties": false
         },
         "operationId": {
@@ -711,12 +593,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     },
     {
@@ -735,11 +612,7 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             },
             "mime": {
-              "enum": [
-                "text/plain",
-                "image/png",
-                "image/jpeg"
-              ]
+              "enum": ["text/plain", "image/png", "image/jpeg"]
             },
             "data": {
               "type": "string",
@@ -748,11 +621,7 @@
               "pattern": "^[A-Za-z0-9+/]*={0,2}$"
             }
           },
-          "required": [
-            "projectId",
-            "mime",
-            "data"
-          ],
+          "required": ["projectId", "mime", "data"],
           "additionalProperties": false
         },
         "operationId": {
@@ -767,12 +636,7 @@
           "maxLength": 100
         }
       },
-      "required": [
-        "method",
-        "params",
-        "operationId",
-        "epoch"
-      ],
+      "required": ["method", "params", "operationId", "epoch"],
       "additionalProperties": false
     }
   ],

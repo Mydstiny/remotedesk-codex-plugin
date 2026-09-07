@@ -7,9 +7,7 @@
       "properties": {
         "result": {}
       },
-      "required": [
-        "result"
-      ],
+      "required": ["result"],
       "additionalProperties": false
     },
     {
@@ -25,12 +23,7 @@
               "pattern": "^[A-Za-z0-9_-]+$"
             },
             "status": {
-              "enum": [
-                "dispatching",
-                "succeeded",
-                "rejected",
-                "unknown"
-              ]
+              "enum": ["dispatching", "succeeded", "rejected", "unknown"]
             },
             "created": {
               "type": "integer"
@@ -47,18 +40,11 @@
               "maxLength": 200
             }
           },
-          "required": [
-            "operationId",
-            "status",
-            "created",
-            "epoch"
-          ],
+          "required": ["operationId", "status", "created", "epoch"],
           "additionalProperties": true
         }
       },
-      "required": [
-        "operation"
-      ],
+      "required": ["operation"],
       "additionalProperties": false
     },
     {
@@ -70,9 +56,7 @@
           "maxLength": 200
         }
       },
-      "required": [
-        "error"
-      ],
+      "required": ["error"],
       "additionalProperties": false
     }
   ]

@@ -19,10 +19,6 @@
       "maxLength": 100
     }
   },
-  "required": [
-    "code",
-    "csr",
-    "name"
-  ],
+  "required": ["code", "csr", "name"],
   "additionalProperties": false
 }

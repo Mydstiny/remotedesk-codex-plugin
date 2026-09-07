@@ -1,5 +1,6 @@
-RemoteDesk Codex Plugin 0.1.0-alpha.1
-Original integration/probe code: Copyright 2026 Mydstiny, MIT.
-No third-party runtime code or npm dependency is redistributed in this package.
-The installed upstream engine is external and retains its own license and terms.
-See docs/provenance.json for the interface evidence and exact observed versions.
+RemoteDesk Codex Plugin 0.2.0
+Original integration, protocol, reference client and bridge code: Copyright 2026 Mydstiny, MIT.
+The bridge-core package is original MIT code maintained in this repository.
+Upstream engines, Node.js, OpenSSL, Docker and container image software are externally installed and retain their own licenses and terms; their binaries are not redistributed in this plugin.
+The included Dockerfile references an official Node image by digest; built container images are not included in the release.
+See docs/provenance.json for the interface evidence and exact versions.
