@@ -6,7 +6,9 @@ import {Client,loadClient,pairClient,submit} from './client.mjs';
 import {renewServer} from './pki.mjs';
 import {Store} from './store.mjs';
 import {privateDirectory} from './privacy.mjs';
-import {service} from './service.mjs';
+import {withLifecycleLock} from './lifecycle-lock.mjs';
+import {DockerExecutor} from './docker-executor.mjs';
+import {service,watchStopRequests} from './service.mjs';
 import {Fault,requireThat} from './errors.mjs';
 const print=v=>console.log(JSON.stringify(v,null,2));
 const help=`Commands: doctor, probe, init, project-add, invite, revoke, status, renew-server, recover, serve, service, pair, read, write, retry, watch
@@ -44,19 +46,25 @@ export async function main({engine,doctor,serve,entry,extra},argv=process.argv.s
   if(command==='status'){print(status(state));return;}
   if(command==='renew-server'){print(await renewServer(join(state,'pki')));return;}
   if(command==='recover'){print(await recover(state));return;}
-  if(command==='serve'){try{const saved=JSON.parse(await readFile(join(state,'service.json'),'utf8'));for(const k of ['PATH','DSH_HOME'])if(typeof saved.environment?.[k]==='string')process.env[k]=saved.environment[k];}catch(e){if(e.code!=='ENOENT')throw e;}await serve(state,config,o);return;}
+  if(command==='serve'){try{const saved=JSON.parse(await readFile(join(state,'service.json'),'utf8'));for(const k of ['PATH','DSH_HOME'])if(typeof saved.environment?.[k]==='string')process.env[k]=saved.environment[k];}catch(e){if(e.code!=='ENOENT')throw e;}const dispose=watchStopRequests(state);try{await serve(state,config,o);}catch(e){dispose();throw e;}return;}
   if(command==='service'){const result=await service(o.action,{engine,entry:resolve(entry),state});if(o.action==='render'&&o.out){await writeFile(o.out,result.text,{encoding:process.platform==='win32'?'utf16le':'utf8',mode:0o600});print({file:resolve(o.out)});}else print(result);return;}
   if(extra&&await extra(command,state,config,o))return;
   throw new Fault('CLI_COMMAND_UNKNOWN');
  }catch(e){console.error(JSON.stringify({error:e instanceof Fault?e.code:'LOCAL_COMMAND_FAILED',hint:'Check command help, version, paths, local engine and native service status.'}));process.exitCode=2;}
 }
-export async function recover(state){
+export async function recover(state){return withLifecycleLock(state,()=>recoverLocked(state));}
+async function recoverLocked(state){
  const config=await configuration(state),store=new Store(state);const removed=[];
  const dead=pid=>{requireThat(Number.isSafeInteger(pid)&&pid>0,'LOCK_PID_INVALID');try{process.kill(pid,0);throw new Fault('LOCK_PROCESS_STILL_EXISTS');}catch(e){if(e.code!=='ESRCH')throw e;}};
  try{
   const paths=[join(state,'server.lock')];const owner=store.get('meta','instance').id;
   try{for(const file of await readdir(config.coordinationDirectory))if(file.endsWith('.lock'))paths.push(join(config.coordinationDirectory,file));}catch(e){if(e.code!=='ENOENT')throw e;}
-  for(const path of paths){let value,raw;try{raw=await readFile(path,'utf8');value=JSON.parse(raw);}catch(e){if(e.code==='ENOENT')continue;throw e;}if(path!==paths[0]&&value.owner!==owner)continue;dead(value.pid);requireThat(await readFile(path,'utf8')===raw,'LOCK_CHANGED');await unlink(path);removed.push(path);}
+  const candidates=[];
+  for(const path of paths){let value,raw;try{raw=await readFile(path,'utf8');value=JSON.parse(raw);}catch(e){if(e.code==='ENOENT')continue;throw e;}if(path!==paths[0]&&value.owner!==owner)continue;dead(value.pid);candidates.push({path,raw});}
+  // The daemon can outlive the crashed controller. Keep all writer locks until
+  // every recorded owned container is confirmed removed.
+  if(store.all('container').length)await new DockerExecutor(store).recover();
+  for(const {path,raw}of candidates.reverse()){requireThat(await readFile(path,'utf8')===raw,'LOCK_CHANGED');await unlink(path);removed.push(path);}
   store.recover();return {recovered:true,removedLocks:removed,unknownOperations:'Reconcile history before sending a new operation.'};
  }finally{store.close();}
 }

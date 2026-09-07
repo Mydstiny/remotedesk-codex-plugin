@@ -154,7 +154,7 @@ export class StdioRpc extends EventEmitter {
     if (!pending) return this.#fail('UNEXPECTED_RESPONSE');
     this.#pending.delete(message.id);
     clearTimeout(pending.timer);
-    if (Object.hasOwn(message, 'error')) pending.reject(new BridgeError('UPSTREAM_REQUEST_FAILED'));
+    if (Object.hasOwn(message, 'error')) { this.emit('requestDiagnostic',{method:pending.method,code:message.error?.code,message:message.error?.message}); const error=new BridgeError('UPSTREAM_REQUEST_FAILED');error.requestMethod=pending.method;error.upstreamCode=message.error?.code;pending.reject(error); }
     else pending.resolve(message.result);
   }
 
@@ -177,7 +177,7 @@ export class StdioRpc extends EventEmitter {
     return new Promise((resolve, reject) => {
       // A timeout is an unknown outcome: terminate, reject all, never retry.
       const timer = setTimeout(() => this.#fail('REQUEST_TIMEOUT_RECONCILE'), this.#timeoutMs);
-      this.#pending.set(id, { resolve, reject, timer });
+      this.#pending.set(id, { resolve, reject, timer, method });
       try { this.#write({ id, method, params }); }
       catch (error) { clearTimeout(timer); this.#pending.delete(id); reject(error); }
     });

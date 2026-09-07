@@ -1,4 +1,5 @@
 import https from 'node:https';
+import {withLifecycleLock} from './lifecycle-lock.mjs';
 import { readFile, open, unlink, realpath } from 'node:fs/promises';
 import { ProjectLocks } from './project-lock.mjs';
 import { privateDirectory } from './privacy.mjs';
@@ -14,7 +15,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const READ = new Set(['handshake','project.list','session.list','session.read','operation.read','approval.list','diff.read']);
 const MUTATE = new Set(['session.create','session.resume','session.archive','lease.acquire','lease.renew','lease.release','turn.start','turn.steer','turn.cancel','approval.answer','attachment.upload']);
 export class Bridge {
-  constructor(directory, adapter) { this.directory=directory; this.adapter=adapter; this.streams=new Map(); this.asks=new Map(); this.owned=new Map(); this.live=new Set(); this.pairBusy=false; this.stopping=false; this.inflight=0;this.deviceInflight=new Map();this.requests=new Set(); }
+  constructor(directory, adapter) { this.directory=directory; this.adapter=adapter; this.streams=new Map(); this.asks=new Map(); this.owned=new Map(); this.live=new Set(); this.pairBusy=false; this.stopping=false; this.inflight=0;this.deviceInflight=new Map();this.requests=new Set();this.controls=new Map(); }
   async start() {
     requireThat(!this.starting&&!this.stopping,'SERVICE_ALREADY_STARTED');
     this.starting=this.startInternal();try{return await this.starting;}catch(e){await this.stop();throw e;}
@@ -23,9 +24,11 @@ export class Bridge {
     await privateDirectory(this.directory);
     this.config = await configuration(this.directory);requireThat(!this.stopping,'SERVICE_STOPPING');
     // Exclusive owner file prevents two engine controllers. Never steal a stale lock.
-    this.lockPath=join(this.directory,'server.lock'); this.lock=await open(this.lockPath,'wx',0o600);
-    try {
+    await withLifecycleLock(this.directory,async()=>{
+      this.lockPath=join(this.directory,'server.lock');this.lock=await open(this.lockPath,'wx',0o600);
       await this.lock.writeFile(JSON.stringify({pid:process.pid,started:Date.now()}));
+    });
+    try {
       this.store=new Store(this.directory); this.store.recover();
       for (const lease of this.store.all('lease')) this.store.delete('lease',lease.id);
       this.runtime=token(); this.nextEvent=this.store.get('meta','event')?.next ?? 1;
@@ -111,6 +114,16 @@ export class Bridge {
   }
   async ensure(s) { if(this.live.has(s.id))return;await this.adapter.resume(s);this.live.add(s.id); }
   async mutate(d,method,p) {
+    // Serialize each session's control transitions across resume/lock/dispatch.
+    // Approvals and leases stay independent so startup can never block a reply.
+    if(!['session.resume','session.archive','turn.start','turn.steer','turn.cancel'].includes(method))return this.mutateNow(d,method,p);
+    const session=this.session(d,p.sessionId);this.writer(d,session,p.lease);
+    const previous=this.controls.get(session.id)??Promise.resolve();
+    const task=previous.catch(()=>{}).then(()=>{requireThat(!this.stopping,'SERVICE_STOPPING');return this.mutateNow(d,method,p);});
+    this.controls.set(session.id,task);
+    try{return await task;}finally{if(this.controls.get(session.id)===task)this.controls.delete(session.id);}
+  }
+  async mutateNow(d,method,p) {
     if(method==='session.create') {
       fields(p,['projectId','title'],['projectId']);const project=this.project(d,p.projectId);
       requireThat(this.store.all('session').length<1000,'SESSION_LIMIT');
@@ -157,7 +170,7 @@ export class Bridge {
   }
   emit(session,event) {
     if(this.stopping)return;
-    if(event.type==='turn/completed'||event.type==='turn/end')void this.projectLocks.release(session).catch(()=>{});
+    if(event.type==='execution.idle')void this.projectLocks.release(session).catch(()=>{});
     const s=this.store.get('session',session);if(!s)return;
     let encoded=JSON.stringify(event);if(Buffer.byteLength(encoded)>200000)event={type:'snapshot.required',reason:'EVENT_TOO_LARGE'};
     const e={cursor:this.nextEvent++,session,project:s.project,runtime:this.runtime,event};

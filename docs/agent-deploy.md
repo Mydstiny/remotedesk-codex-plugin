@@ -1,23 +1,20 @@
-# 用户 Agent 操作流程：Codex
+# 交给用户 Agent 的部署任务
 
-当前版本：0.1.0-alpha.1 / AI0，仅部署源码诊断工具，不能部署可远程访问的 AI 服务。
+可直接复制下面的任务，补充安装主机、版本、项目和监听地址：
 
-## 可复制给 Agent 的任务
+> 请将 Mydstiny/remotedesk-codex-plugin 的指定 Release 0.2.0 部署到这台电脑。先阅读固定 commit 下的 README、SECURITY、compatibility.json 与 docs/operations.md，核对 Release 文件 SHA256SUMS；不要运行浮动远程 shell。使用当前用户的现有 Codex provider 登录，不读取、打印或复制账号密钥。安装持久版本目录，核验 Node/OpenSSL/Codex/本机 Docker Linux 容器，将我选定的项目与固定镜像加入独立私有 state。先前台启动并配对参考客户端，验证项目列表、发消息、审批接受/拒绝、取消和停启恢复，再安装用户后台服务。完成后提供主机端点、CA 指纹的可信核对方式、已授权项目、版本、命令与验收结果。保留项目、原有本地会话、模型配置及旧版本回滚材料。没有授权的防火墙/公网/账号改变先说明具体必要性；不暴露原生引擎端口。不在本任务里开发鸿蒙端或宣称手机已验收。
 
-> 请读取 Mydstiny/remotedesk-codex-plugin 中维护者指定的固定提交及 docs/agent-deploy.md，准备并检查当前 AI0 诊断工具。先核验来源和版本，再在临时目录校验源码、运行测试和 doctor，记录脱敏结果。不要开启监听、替换现有问答接收器、修改账号或使用浮动远程 shell。若目标是鸿蒙配对，请明确报告当前尚未实现，而不要把 doctor 成功当作配对完成。
+## Agent 执行清单
 
-## 必须遵守的流程
+1. 检查 OS/架构、PATH、精确引擎组件版本；未知组合 fail closed，报告差异。
+2. 从可信仓库固定 tag/commit 获取包。私有 GitHub 访问使用用户已有权限，不索取 token。Release checksum 与源码都来自同一仓库，不宣称独立签名认证。
+3. 保存安装路径和 state 路径；state 与授权项目绝不重叠。审核镜像 Dockerfile，联网构建后固定 image ID；不在会话中自动安装 host 工具。
+4. 按 operations 初始化监听、证书 SAN、项目、provider/model。默认 loopback；LAN 需用户已指定的网卡地址/端口。原生引擎远程端口始终不直接对外。
+5. Codex 使用本机 App Server；受限远程会话只提供 Docker 工具，不继承本地 MCP/插件。
+6. 前台 `serve`，邀请写入私有文件。只通过可信渠道交给目标客户端，不放日志/聊天/issue；客户端生成独立私钥。
+7. 用本包参考客户端完成真实 HTTPS 冒烟测试：项目列表、会话、租约、消息与历史、命令审批接受及拒绝、问题答复、取消、停启后恢复。使用专用测试项目，模型调用可能按现有 provider 计费，应遵循用户预算。
+8. 检查服务 render 后安装。核验 service status、退出/重新登录后的启动条件。交付服务端点和操作指南，清理仅本次邀请/测试副本。
+9. 遇到 unknown/超时，保留原 UUID/epoch 回执，禁止自动新 ID 重发；恢复遵守 operations。
+10. 明确报告真实模型/真实系统/实际手机分别验证到了哪一步。CI 的模型响应使用确定性模拟服务，但引擎本身是真实发行版；不要把它称为云模型账号验收。
 
-1. 从可信的维护者交付记录取得完整 commit SHA，确认仓库 owner 为 `Mydstiny`；私有仓库需要用户已有的 GitHub 访问权。不得索取或打印 token。
-2. 获取该提交到临时目录并核对 `git rev-parse HEAD`。当前没有发布包、签名安装器或 release；不要虚构下载地址。GitHub 提交与同源 checksum 只是来源/完整性线索，不能宣称独立签名认证。
-3. 阅读 `compatibility.json`、`docs/compatibility.md`、`package.json` 和待执行脚本。当前包没有 npm 安装依赖或 install hooks，不需要全局 npm 安装。
-4. 运行 `npm test`、`npm pack --dry-run --ignore-scripts`、`node bin/remotedesk-codex.mjs doctor --json`。检查每条 `checks`，不能只检查可执行文件存在。DSH 还必须检查各解析组件的版本。
-5. 按 [操作文档](operations.md) 执行已授权的本地探针。Codex 探针创建临时只读会话，可能触发引擎自己的缓存/日志；DSH 原生测试使用合成会话，不读取用户 profile 或会话。
-6. 记录命令、退出码、版本、通过项与未测项。`status=ok` 只证明被执行的诊断；`capabilities.remoteAccess=false` 是明确的未开放状态。
-7. 测试结束即退出进程；当前没有后台服务、开机启动、防火墙变化或配对数据。清理仅限本次创建的临时副本，保留用户 AI 安装及账号。
-
-退出码：0 表示当前诊断通过，2 表示环境/兼容/探针阻塞，64 表示参数错误。非零结果禁止自动绕过版本检查或反复重试未决写操作。
-
-## 后续版本才有的流程
-
-正式版本会增加带来源验证的安装/升级/回滚、设备配对、监听范围、项目选择、停止和卸载命令。当前不提供 install/start/pair/upgrade 命令；不能用手工暴露官方引擎端口代替。
+升级/回滚/卸载采用 operations 的完整步骤；后台 service uninstall 保留全部 state 和项目。终端日志不得包含私钥、邀请、模型 token 或用户项目内容。

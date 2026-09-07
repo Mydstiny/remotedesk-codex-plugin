@@ -18,8 +18,8 @@ export function remoteConfig(profile,mcpNames=[],inheritedEnvironment=[],librari
  const valueFor=key=>{const name=Object.keys(process.env).find(n=>n.toUpperCase()===key.toUpperCase());return allowed.some(n=>n.toUpperCase()===key.toUpperCase())?(process.env[name]??''):'';};
  const environment=Object.fromEntries([...new Set([...inheritedEnvironment,...allowed])].map(key=>[key,valueFor(key)]));
  return { default_permissions:profile, permissions:{[profile]:{filesystem:{...Object.fromEntries(libraries.map(p=>[p,'read'])),':root':'deny',':minimal':'read',':tmpdir':'deny',':slash_tmp':'deny',':workspace_roots':{'.':'read','.git':'read','.codex':'read','.agents':'read'}},network:{enabled:false}}},
-  features:{...Object.fromEntries(DISABLED_FEATURES.map(n=>[n,false])),skip_host_skill_discovery:true,default_mode_request_user_input:true},
-  notify:[],orchestrator:{mcp:{enabled:false},skills:{enabled:false}},skills:{bundled:{enabled:false},include_instructions:false},mcp_servers:Object.fromEntries(mcpNames.map(n=>[n,{enabled:false}])),allow_login_shell:false,shell_environment_policy:{inherit:'none',ignore_default_excludes:false,set:environment},web_search:'disabled',approval_policy:APPROVAL_POLICY,approvals_reviewer:'user' };
+  features:{...Object.fromEntries(DISABLED_FEATURES.map(n=>[n,false])),skip_host_skill_discovery:true,default_mode_request_user_input:false},
+  tools:{experimental_request_user_input:{enabled:false},update_plan:{enabled:false}},notify:[],orchestrator:{mcp:{enabled:false},skills:{enabled:false}},skills:{bundled:{enabled:false},include_instructions:false},mcp_servers:Object.fromEntries(mcpNames.map(n=>[n,{enabled:false}])),allow_login_shell:false,shell_environment_policy:{inherit:'none',ignore_default_excludes:false,set:environment},web_search:'disabled',approval_policy:APPROVAL_POLICY,approvals_reviewer:'user' };
 }
 export async function codexCommand(explicit) {
  if(explicit) {const p=await realpath(explicit);return p.endsWith('.js')?{command:process.execPath,prefix:[p]}:{command:p,prefix:[]};}
@@ -33,7 +33,7 @@ export async function codexCommand(explicit) {
 }
 export class CodexAdapter {
  capabilities={sessions:true,turns:true,steer:true,cancel:true,approvals:true,questions:true,diffs:true,attachments:['text/plain','image/png','image/jpeg'],execution:'docker-project-mount-no-network',outsideSandboxApproval:false};
- constructor({command,providerOverrides,executor}={}) {this.customExecutor=executor;this.explicit=command;this.providerOverrides=providerOverrides;this.metadata=new Map();this.rpcs=new Map();this.turns=new Map();this.diffs=new Map();this.loading=new Map();this.aborters=new Map();this.runs=new Map();this.closed=false;}
+ constructor({command,providerOverrides,executor,diagnostic}={}) {this.diagnostic=diagnostic;this.customExecutor=executor;this.explicit=command;this.providerOverrides=providerOverrides;this.metadata=new Map();this.rpcs=new Map();this.turns=new Map();this.diffs=new Map();this.loading=new Map();this.aborters=new Map();this.runs=new Map();this.closed=false;}
  bind(core){this.core=core;this.executor=this.customExecutor??new DockerExecutor(core.storage);}
  async prepare(){await this.executor.recover();for(const p of this.core.projects)await this.executor.check(p);}
  project(s){const p=this.core.projects.find(p=>p.id===s.project);requireThat(p,'PROJECT_NOT_FOUND');return p;}
@@ -48,7 +48,7 @@ export class CodexAdapter {
   requireThat(!s.upstream||s.executionProfile==='container-v1','SESSION_PROFILE_UNVERIFIED');const command=await codexCommand(this.explicit);
   const {stdout}=await exec(command.command,[...command.prefix,'--version'],{timeout:5000,maxBuffer:4096,windowsHide:true});
   requireThat(/^codex(?:-cli)? 0\.153\.4\s*$/.test(stdout.trim()),'CODEX_VERSION_UNVERIFIED');
-  const spawn=extra=>new StdioRpc(command.command,[...command.prefix,...DISABLED_FEATURES.flatMap(f=>['--disable',f]),'-c','notify=[]',...extra,'app-server'],{cwd:p.path,timeoutMs:45000,maxFrameBytes:16000000,requestHandler:(method,params)=>this.serverRequest(s,method,params)});let rpc=spawn([]),metadataDirectory;
+  const spawn=extra=>{const rpc=new StdioRpc(command.command,[...command.prefix,...DISABLED_FEATURES.flatMap(f=>['--disable',f]),'-c','notify=[]',...extra,'app-server'],{cwd:p.path,timeoutMs:45000,maxFrameBytes:16000000,requestHandler:(method,params)=>this.serverRequest(s,method,params)});if(this.diagnostic)rpc.on('requestDiagnostic',this.diagnostic);return rpc;};let rpc=spawn([]),metadataDirectory;
   try {
    await rpc.request('initialize',{clientInfo:{name:'remotedesk_bridge',title:'RemoteDesk',version:'0.2.0'},capabilities:{experimentalApi:true}});rpc.notify('initialized');
    // Inspect effective names through the documented API; never log or persist
@@ -129,7 +129,7 @@ export class CodexAdapter {
   if(params?.threadId!==s.upstream)return;
   const run=this.runs.get(s.id);
   if(method==='turn/started' && run){run.turnId=params.turn.id;if(!run.finished)this.turns.set(s.id,params.turn.id);}
-  if(method==='turn/completed' && run && (!run.turnId || run.turnId===params.turn.id))this.finish(s,run);
+  if(method==='turn/completed' && run && (!run.turnId || run.turnId===params.turn.id)){this.finish(s,run);this.core.emit(s.id,{type:'execution.idle'});}
   if(method==='turn/diff/updated')this.diffs.set(s.id,params.diff);
   // Only a known thread's model, tool and turn events cross the public facade.
   if(/^(turn\/|item\/|thread\/tokenUsage\/)/.test(method))this.core.emit(s.id,{type:method,params});
