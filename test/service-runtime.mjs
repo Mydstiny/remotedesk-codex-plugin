@@ -20,7 +20,7 @@ config.coordinationDirectory = join(root, 'coordination');
 await writeFile(join(state, 'config.json'), JSON.stringify(config));
 await writeFile(
   entry,
-  `import {main} from ${JSON.stringify(cli)};import {Bridge} from ${JSON.stringify(server)};await main({engine:'codex',entry:${JSON.stringify(entry)},serve:async directory=>{const bridge=new Bridge(directory,{capabilities:{fixture:true},bind(){},async close(){}});process.once('SIGTERM',()=>bridge.stop());process.once('SIGINT',()=>bridge.stop());await bridge.start();}});`,
+  `import {main} from ${JSON.stringify(cli)};import {Bridge} from ${JSON.stringify(server)};await new Promise(r=>setTimeout(r,1500));await main({engine:'codex',entry:${JSON.stringify(entry)},serve:async directory=>{const bridge=new Bridge(directory,{capabilities:{fixture:true},bind(){},async close(){}});process.once('SIGTERM',()=>bridge.stop());process.once('SIGINT',()=>bridge.stop());await bridge.start();}});`,
 );
 const options = {
   engine: 'codex',
@@ -54,11 +54,19 @@ try {
   );
   installed = true;
   await service('install', options);
+  await service('stop', options);
+  await new Promise((r) => setTimeout(r, 2000));
+  assert.equal(await running(), false, 'stop must fence a spawned process before Bridge.start');
+  await service('start', options);
   await wait(running);
   await service('install', options);
   assert.ok((await service('status', options)).nativeStatus);
   await service('stop', options);
   await wait(async () => !(await running()));
+  await service('start', options);
+  await service('stop', options);
+  await new Promise((r) => setTimeout(r, 2000));
+  assert.equal(await running(), false, 'immediate start/stop must not leave a delayed listener');
   await service('start', options);
   await wait(running);
   await service('stop', options);

@@ -1,3 +1,4 @@
+import { ExecutionFence } from '../packages/bridge-core/lib/execution-fence.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { access, readFile, realpath, mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -172,6 +173,7 @@ export class CodexAdapter {
   bind(core) {
     this.core = core;
     this.executor = this.customExecutor ?? new DockerExecutor(core.storage);
+    this.executions = new ExecutionFence(this.executor);
   }
   async prepare() {
     await this.executor.recover();
@@ -379,7 +381,7 @@ export class CodexAdapter {
       ...(cursor ? { cursor } : {}),
     });
     return {
-      status: this.turns.has(s.id) ? 'running' : 'idle',
+      status: this.runs.get(s.id)?.finished ? 'blocked' : this.turns.has(s.id) ? 'running' : 'idle',
       model: s.model,
       provider: s.provider,
       turns: turns.data ?? turns.turns ?? [],
@@ -388,6 +390,7 @@ export class CodexAdapter {
   }
   async start(s, text, attachments = []) {
     requireThat(!this.runs.has(s.id), 'TURN_ALREADY_RUNNING');
+    this.executions.assertIdle(s.id, this.project(s));
     const run = {
       generation: randomUUID(),
       turnId: null,
@@ -433,21 +436,33 @@ export class CodexAdapter {
       if (run.cancelRequested && !run.finished) await this.interrupt(s, run);
       return { turnId: r.turn.id, cancelRequested: run.cancelRequested };
     } catch (e) {
-      this.finish(s, run);
+      await this.finish(s, run);
       throw e;
     } finally {
       run.readyResolve();
     }
   }
   finish(s, run) {
+    if (run.finishPromise) return run.finishPromise;
     run.finished = true;
     run.controller.abort();
-    run.doneResolve();
-    if (this.runs.get(s.id) === run) {
-      this.runs.delete(s.id);
-      this.turns.delete(s.id);
-      this.aborters.delete(s.id);
-    }
+    run.finishPromise = (async () => {
+      try {
+        await this.executions.wait(s.id, this.project(s));
+        if (this.runs.get(s.id) === run) {
+          this.runs.delete(s.id);
+          this.turns.delete(s.id);
+          this.aborters.delete(s.id);
+        }
+      } finally {
+        run.doneResolve();
+      }
+    })();
+    return run.finishPromise;
+  }
+  quiescent(s) {
+    requireThat(!this.runs.has(s.id), 'TURN_NOT_QUIESCENT');
+    this.executions.assertIdle(s.id, this.project(s));
   }
   async interrupt(s, run) {
     if (run.finished || !run.turnId) return;
@@ -459,23 +474,27 @@ export class CodexAdapter {
   async steer(s, text) {
     const run = this.runs.get(s.id);
     requireThat(run?.turnId && !run.cancelRequested && !run.finished, 'NO_ACTIVE_TURN');
-    return this.rpcs
-      .get(s.id)
-      .request('turn/steer', {
-        threadId: s.upstream,
-        expectedTurnId: run.turnId,
-        input: [{ type: 'text', text }],
-        clientUserMessageId: randomUUID(),
-      });
+    return this.rpcs.get(s.id).request('turn/steer', {
+      threadId: s.upstream,
+      expectedTurnId: run.turnId,
+      input: [{ type: 'text', text }],
+      clientUserMessageId: randomUUID(),
+    });
   }
   async cancel(s) {
     if (!s) return;
     const run = this.runs.get(s.id);
-    if (!run) return;
+    if (!run) {
+      await this.executions.wait(s.id, this.project(s));
+      return;
+    }
     run.cancelRequested = true;
     run.controller.abort();
     await run.ready;
-    if (run.finished) return;
+    if (run.finished) {
+      await run.finishPromise;
+      return;
+    }
     try {
       await this.interrupt(s, run);
       let timer;
@@ -489,6 +508,8 @@ export class CodexAdapter {
       } finally {
         clearTimeout(timer);
       }
+      await run.finishPromise;
+      this.quiescent(s);
     } catch (e) {
       // Terminate only this adapter-owned engine when cancellation cannot converge.
       const rpc = this.rpcs.get(s.id);
@@ -496,12 +517,14 @@ export class CodexAdapter {
         await rpc.close();
         this.rpcs.delete(s.id);
       }
-      this.finish(s, run);
+      await this.finish(s, run);
       throw e;
     }
   }
   async diff(s) {
-    return projectDiff(this.executor, this.project(s));
+    return this.executions.run(s.id, this.project(s), () =>
+      projectDiff(this.executor, this.project(s), s.id),
+    );
   }
   notification(s, { method, params }) {
     if (params?.threadId !== s.upstream) return;
@@ -511,8 +534,14 @@ export class CodexAdapter {
       if (!run.finished) this.turns.set(s.id, params.turn.id);
     }
     if (method === 'turn/completed' && run && (!run.turnId || run.turnId === params.turn.id)) {
-      this.finish(s, run);
-      this.core.emit(s.id, { type: 'execution.idle' });
+      void this.finish(s, run).then(
+        () => this.core.emit(s.id, { type: 'execution.idle' }),
+        () =>
+          this.core.emit(s.id, {
+            type: 'execution.blocked',
+            reason: 'WORKSPACE_CLEANUP_UNCONFIRMED',
+          }),
+      );
     }
     if (method === 'turn/diff/updated') this.diffs.set(s.id, params.diff);
     // Only a known thread's model, tool and turn events cross the public facade.
@@ -528,17 +557,21 @@ export class CodexAdapter {
       'UPSTREAM_REQUEST_STALE',
     );
     requireThat(method === 'item/tool/call' && !params.namespace, 'UPSTREAM_METHOD_UNSUPPORTED');
-    const signal = this.aborters.get(s.id)?.signal;
+    const run = this.runs.get(s.id);
+    requireThat(run && !run.finished && !run.cancelRequested, 'UPSTREAM_REQUEST_STALE');
+    const signal = run.controller.signal;
     try {
-      const result = await executeWorkspaceTool({
-        executor: this.executor,
-        core: this.core,
-        session: s,
-        project: this.project(s),
-        name: params.tool,
-        args: params.arguments,
-        signal,
-      });
+      const result = await this.executions.run(s.id, this.project(s), () =>
+        executeWorkspaceTool({
+          executor: this.executor,
+          core: this.core,
+          session: s,
+          project: this.project(s),
+          name: params.tool,
+          args: params.arguments,
+          signal,
+        }),
+      );
       return { contentItems: [{ type: 'inputText', text: JSON.stringify(result) }], success: true };
     } catch (e) {
       return {
@@ -573,7 +606,12 @@ export class CodexAdapter {
     for (const directory of this.metadata.values())
       await rm(directory, { recursive: true, force: true });
     this.metadata.clear();
-    if (results.some((r) => r.status === 'rejected')) throw new Fault('ENGINE_CLEANUP_UNCONFIRMED');
+    await this.executions?.drain();
     await this.executor?.recover();
+    this.executor?.assertQuiescent?.();
+    if (results.some((r) => r.status === 'rejected')) throw new Fault('ENGINE_CLEANUP_UNCONFIRMED');
+    this.runs.clear();
+    this.turns.clear();
+    this.aborters.clear();
   }
 }

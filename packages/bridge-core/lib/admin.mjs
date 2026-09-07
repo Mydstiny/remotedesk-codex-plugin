@@ -128,16 +128,14 @@ export function status(directory) {
   const store = new Store(directory);
   try {
     return {
-      devices: store
-        .all('device')
-        .map(({ id, name, projects, role, revoked, generation }) => ({
-          id,
-          name,
-          projects,
-          role,
-          revoked,
-          generation,
-        })),
+      devices: store.all('device').map(({ id, name, projects, role, revoked, generation }) => ({
+        id,
+        name,
+        projects,
+        role,
+        revoked,
+        generation,
+      })),
       sessions: store
         .all('session')
         .map(({ id, project, archived }) => ({ id, project, archived })),

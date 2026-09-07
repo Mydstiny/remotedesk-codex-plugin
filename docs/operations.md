@@ -87,6 +87,8 @@ node bin/remotedesk-codex.mjs service --state "$STATE" --action start
 
 macOS：LaunchAgent，用户登录后启动。Linux：systemd user，需正常用户服务管理器；默认退出登录后的行为由该用户会话决定，本工具不修改 linger。Windows：当前登录用户的 Scheduled Task，LeastPrivilege/InteractiveToken，不保存密码，不支持未登录时以 SYSTEM 代运行。服务记录固定 Node 路径、插件路径和必要 PATH/DSH_HOME，不存模型密钥。
 
+stop 会先等待正常退出，再与启动互斥地停止原生管理器，避免刚启动但尚未监听的进程在 stop 返回后继续运行。macOS stop 保留描述文件但卸载当前 job，start 会重新加载。
+
 服务不在崩溃后自动重启，避免不明操作被自动重复。先检查原生管理器状态与会话，再执行 `recover` 清理已确认死亡的本插件锁，随后 start。recover 拒绝活 PID，绝不偷走另一个控制器的锁。Docker 恢复仅删除带本服务 owner 标记且有本服务记录的容器，不运行 prune。
 
 ## 7. 升级、回滚、续证和卸载
@@ -99,4 +101,4 @@ macOS：LaunchAgent，用户登录后启动。Linux：systemd user，需正常�
 
 ## 故障排查
 
-`UNVERIFIED_*`：固定兼容版本不匹配；不要删除版本门。`DOCKER_*`：检查本机 Linux daemon、共享路径、固定镜像及普通用户权限。`PRIVATE_DIRECTORY_*`：核对目录所有者/ACL，不放宽为 everyone。`PROJECT_BUSY`：另一个 RemoteDesk 会话正在写同一项目；先查看并停止正确会话。`RESET_REQUIRED`：重新握手/快照。`EPOCH_*_RECONCILE`/`unknown`：核对历史后再操作。命令退出码 0 为当前动作成功，2 为失败或不确定结果。不得把 doctor 成功当作模型账户或设备矩阵通过。
+`UNVERIFIED_*`：固定兼容版本不匹配；不要删除版本门。`DOCKER_*`：检查本机 Linux daemon、共享路径、固定镜像及普通用户权限。`PRIVATE_DIRECTORY_*`：核对目录所有者/ACL，不放宽为 everyone。`WORKSPACE_CLEANUP_UNCONFIRMED`/`execution.blocked`：项目写锁仍保留；停止服务，确认 Docker 可用，按 recover 清理后再启动，不可强删锁。`PROJECT_BUSY`：另一个 RemoteDesk 会话正在写同一项目；先查看并停止正确会话。`RESET_REQUIRED`：重新握手/快照。`EPOCH_*_RECONCILE`/`unknown`：核对历史后再操作。命令退出码 0 为当前动作成功，2 为失败或不确定结果。不得把 doctor 成功当作模型账户或设备矩阵通过。

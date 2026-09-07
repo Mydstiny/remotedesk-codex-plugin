@@ -16,7 +16,9 @@
     "./store": "./lib/store.mjs",
     "./privacy": "./lib/privacy.mjs",
     "./docker": "./lib/docker-executor.mjs",
-    "./workspace-tools": "./lib/workspace-tools.mjs"
+    "./workspace-tools": "./lib/workspace-tools.mjs",
+    "./execution-fence": "./lib/execution-fence.mjs",
+    "./lifecycle-lock": "./lib/lifecycle-lock.mjs"
   },
   "files": [
     "lib",

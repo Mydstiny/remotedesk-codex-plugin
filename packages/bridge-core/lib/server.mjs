@@ -360,19 +360,24 @@ export class Bridge {
       return this.mutateNow(d, method, p);
     const session = this.session(d, p.sessionId);
     this.writer(d, session, p.lease);
-    const previous = this.controls.get(session.id) ?? Promise.resolve();
-    const task = previous
-      .catch(() => {})
-      .then(() => {
-        requireThat(!this.stopping, 'SERVICE_STOPPING');
-        return this.mutateNow(d, method, p);
-      });
-    this.controls.set(session.id, task);
+    return this.serializeSession(session.id, () => {
+      requireThat(!this.stopping, 'SERVICE_STOPPING');
+      return this.mutateNow(d, method, p);
+    });
+  }
+  async serializeSession(id, action) {
+    const previous = this.controls.get(id) ?? Promise.resolve();
+    const task = previous.catch(() => {}).then(action);
+    this.controls.set(id, task);
     try {
       return await task;
     } finally {
-      if (this.controls.get(session.id) === task) this.controls.delete(session.id);
+      if (this.controls.get(id) === task) this.controls.delete(id);
     }
+  }
+  async releaseProject(s) {
+    await this.adapter.quiescent?.(s);
+    await this.projectLocks.release(s.id);
   }
   async mutateNow(d, method, p) {
     if (method === 'session.create') {
@@ -497,7 +502,7 @@ export class Bridge {
       await this.adapter.cancel(s);
       await this.adapter.deactivate?.(s);
       this.live.delete(s.id);
-      await this.projectLocks.release(s.id);
+      await this.releaseProject(s);
       this.cancelAsks(s.id);
       s.archived = true;
       this.store.put('session', s.id, s);
@@ -515,7 +520,7 @@ export class Bridge {
     this.writer(d, s, p.lease);
     if (method === 'turn.cancel') {
       await this.adapter.cancel(s);
-      await this.projectLocks.release(s.id);
+      await this.releaseProject(s);
       this.cancelAsks(s.id);
       return { cancelRequested: true };
     }
@@ -546,16 +551,17 @@ export class Bridge {
           if (previous) this.owned.set(s.id, previous);
           else this.owned.delete(s.id);
         }
-        await this.projectLocks.release(s.id);
+        await this.releaseProject(s);
       }
       throw e;
     }
   }
   emit(session, event) {
     if (this.stopping) return;
-    if (event.type === 'execution.idle') void this.projectLocks.release(session).catch(() => {});
     const s = this.store.get('session', session);
     if (!s) return;
+    if (event.type === 'execution.idle')
+      void this.serializeSession(session, () => this.releaseProject(s)).catch(() => {});
     let encoded = JSON.stringify(event);
     if (Buffer.byteLength(encoded) > 200000)
       event = { type: 'snapshot.required', reason: 'EVENT_TOO_LARGE' };
@@ -687,12 +693,14 @@ export class Bridge {
         if (!owner.cancelling) {
           owner.cancelling = true;
           const s = this.store.get('session', id);
-          void this.adapter
-            .cancel(s)
+          void this.serializeSession(id, async () => {
+            if (this.owned.get(id) !== owner) return;
+            await this.adapter.cancel(s);
+            await this.releaseProject(s);
+          })
             .then(
               async () => {
-                await this.projectLocks.release(id);
-                this.owned.delete(id);
+                if (this.owned.get(id) === owner) this.owned.delete(id);
               },
               () => {
                 owner.cancelling = false;
@@ -732,6 +740,7 @@ export class Bridge {
       failure = e;
     }
     await Promise.allSettled([...this.requests]);
+    await Promise.allSettled([...this.controls.values()]);
     if (!failure)
       try {
         await this.projectLocks?.close();

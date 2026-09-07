@@ -42,6 +42,14 @@ export class DockerExecutor {
     requireThat((await realpath(project.path)) === project.path, 'PROJECT_PATH_CHANGED');
   }
   async cleanup(name) {
+    try {
+      await this.cleanupInternal(name);
+    } catch (error) {
+      if (error instanceof Fault && error.code === 'CONTAINER_OWNER_MISMATCH') throw error;
+      throw new Fault('DOCKER_CLEANUP_UNCONFIRMED');
+    }
+  }
+  async cleanupInternal(name) {
     requireThat(/^remotedesk-[a-f0-9-]{36}$/.test(name), 'CONTAINER_ID_INVALID');
     let exists;
     try {
@@ -79,16 +87,34 @@ export class DockerExecutor {
     }
     this.store.delete('container', name);
   }
+  assertQuiescent(project, session) {
+    requireThat(
+      !this.store
+        .all('container')
+        .some(
+          (c) =>
+            (!project || c.project === project.id) &&
+            (!session || !c.session || c.session === session),
+        ),
+      'WORKSPACE_CLEANUP_UNCONFIRMED',
+    );
+  }
   async recover() {
     for (const c of this.store.all('container')) await this.cleanup(c.id);
   }
-  async run(project, command, { signal, readOnly = false } = {}) {
+  async run(project, command, { signal, readOnly = false, sessionId } = {}) {
     string(command, 64000);
     requireThat(!signal?.aborted, 'EXECUTION_CANCELLED');
     await this.check(project);
     requireThat(!signal?.aborted, 'EXECUTION_CANCELLED');
     const name = 'remotedesk-' + randomUUID();
-    this.store.put('container', name, { id: name, project: project.id, created: Date.now() });
+    this.store.put('container', name, {
+      id: name,
+      project: project.id,
+      session: sessionId,
+      readOnly,
+      created: Date.now(),
+    });
     // Model text is only the final sh argument. It can never become Docker flags.
     const user =
       process.platform !== 'win32' ? `${process.getuid()}:${process.getgid()}` : '1000:1000';

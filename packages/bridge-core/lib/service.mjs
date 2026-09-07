@@ -1,3 +1,4 @@
+import { withLifecycleLock } from './lifecycle-lock.mjs';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -74,6 +75,10 @@ export function serviceDefinition({
   };
 }
 export async function service(action, options) {
+  if (['render', 'status'].includes(action)) return serviceInternal(action, options);
+  return withLifecycleLock(options.state, () => serviceInternal(action, options), 'service');
+}
+async function serviceInternal(action, options) {
   const platform = process.platform;
   let userSid;
   if (platform === 'win32')
@@ -198,11 +203,50 @@ export async function service(action, options) {
   }
   requireThat(registered, 'SERVICE_NOT_REGISTERED');
   if (action === 'stop' || action === 'uninstall') {
-    await requestStop(options.state);
+    // Graceful stop handles a published controller. The startup gate then
+    // excludes a process that has been spawned but has not published its lock.
+    // Only in that pre-controller window may the native manager terminate it.
+    for (;;) {
+      await requestStop(options.state);
+      const stopped = await withLifecycleLock(options.state, async () => {
+        try {
+          await readFile(join(options.state, 'server.lock'));
+          return false;
+        } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+        if (!(await exists())) return true;
+        if (platform === 'darwin')
+          await run('launchctl', ['bootout', `gui/${process.getuid()}`, def.path]);
+        if (platform === 'linux') await run('systemctl', ['--user', 'stop', def.id + '.service']);
+        if (platform === 'win32') {
+          const stopTask = `$ErrorActionPreference='Stop';$s=[Activator]::CreateInstance([Type]::GetTypeFromProgID('Schedule.Service'));$s.Connect();$t=$s.GetFolder('\\').GetTask('${def.id}');if($t.GetInstances(0).Count -gt 0 -or $t.State -eq 2){$t.Stop(0)};$end=[DateTime]::UtcNow.AddSeconds(15);do{if($t.GetInstances(0).Count -eq 0 -and $t.State -ne 2){exit 0};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $end);exit 1`;
+          await run('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-EncodedCommand',
+            Buffer.from(stopTask, 'utf16le').toString('base64'),
+          ]);
+        }
+        return true;
+      });
+      if (stopped) break;
+    }
     if (action === 'stop') return { action, id: def.id, stopped: true };
   }
-  const present = await exists();
+  let present = await exists();
   let result;
+  if (!present && platform === 'darwin') {
+    if (action === 'start') {
+      await run('launchctl', ['bootstrap', `gui/${process.getuid()}`, def.path]);
+      present = true;
+    } else if (action === 'status')
+      return {
+        action,
+        id: def.id,
+        nativeStatus: 'Registered descriptor; currently stopped and unloaded.',
+      };
+  }
   if (action !== 'uninstall') requireThat(present, 'SERVICE_NOT_REGISTERED_RETRY_INSTALL');
   if (present) {
     if (platform === 'darwin')

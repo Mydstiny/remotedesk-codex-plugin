@@ -57,7 +57,7 @@ export async function executeWorkspaceTool({
       signal,
     );
     requireThat(answer.decision === 'accept', 'COMMAND_DENIED');
-    return executor.run(project, args.command, { signal });
+    return executor.run(project, args.command, { signal, sessionId: session.id });
   }
   if (name === 'remotedesk_workspace_read') {
     fields(args, ['path'], ['path']);
@@ -66,6 +66,7 @@ export async function executeWorkspaceTool({
     const program = `const fs=require('fs'),p=require('path');const f=p.resolve('/workspace',process.argv[1]);if(f!=='/workspace'&&!f.startsWith('/workspace/'))process.exit(13);const b=fs.readFileSync(f);if(b.length>131072)process.exit(14);process.stdout.write(b);`;
     return executor.run(project, ['node', '-e', program, args.path].map(quote).join(' '), {
       signal,
+      sessionId: session.id,
       readOnly: true,
     });
   }
@@ -89,9 +90,9 @@ export function validateWorkspaceAnswer(request, answer) {
     requireThat(['accept', 'decline', 'cancel'].includes(answer.decision), 'APPROVAL_DECISION');
   }
 }
-export const projectDiff = (executor, project) =>
+export const projectDiff = (executor, project, sessionId) =>
   executor.run(
     project,
     'GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c core.fsmonitor=false -c core.hooksPath=/dev/null diff --no-ext-diff --no-textconv --ignore-submodules=all -- .',
-    { readOnly: true },
+    { readOnly: true, sessionId },
   );

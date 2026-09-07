@@ -47,7 +47,7 @@ Codex 只提供 RemoteDesk 受限配置的三项动态工具；DSH 对本插件�
 
 `GET /v1/events?cursor=<外层快照cursor>&runtime=<handshake.runtime>` 使用相同 mTLS。SSE `id` 为全局递增 cursor，`data` 为 `{cursor,session,project,runtime,event}`。只发送授权项目；流会有 15 秒注释心跳。每设备最多两个流，慢客户端缓冲超过 1 MiB 断开。保留最多 2000 条/8 MiB 事件。
 
-公共事件含本引擎 model/tool/turn 事件、`approval.request`（approvalId/request/expires）、`approval.closed`、`execution.idle`、`snapshot.required` 和 `persistence.failed`。UI 按事件更新展示；未知新增类型应忽略并保留快照刷新能力。只有 execution.idle 表示本插件执行已收敛；不要把某一个 DSH turn/end 当作整个 Agent 的所有追加消息结束。
+公共事件含本引擎 model/tool/turn 事件、`approval.request`（approvalId/request/expires）、`approval.closed`、`execution.idle`、`execution.blocked`、`snapshot.required` 和 `persistence.failed`。UI 按事件更新展示；未知新增类型应忽略并保留快照刷新能力。只有 execution.idle 表示本插件执行已收敛（本机工具回调与容器清理均完成）；execution.blocked 或 snapshot.status=blocked 表示仍有未确认的清理/持久化，项目写锁保留，不应继续发送写任务。先停服、恢复本机 Docker 可用性并按 recover 流程处理。不要把某一个 DSH turn/end 当作整个 Agent 的所有追加消息结束。
 
 先握手、读快照，再从快照 cursor 订阅。快照游标在读取引擎前捕获，允许重叠事件但不能跳过间隙；按 cursor 去重，渲染仍以内层稳定 item/message ID 为准。runtime 变化、游标越界或历史清理返回 RESET_REQUIRED，需要重新握手/快照。服务重启清空旧租约；客户端必须重新取得租约，不能沿用旧审批。
 

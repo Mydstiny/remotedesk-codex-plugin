@@ -1,10 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { Fault } from './errors.mjs';
+import { Fault, requireThat } from './errors.mjs';
 // SQLite's OS lock is released on process death, unlike an orphaned lock file.
 // This gate only serializes start/recover; it contains no data or credentials.
-export async function withLifecycleLock(directory, action) {
-  const db = new DatabaseSync(join(directory, 'lifecycle.sqlite'));
+export async function withLifecycleLock(directory, action, name = 'lifecycle') {
+  requireThat(['lifecycle', 'service', 'installation'].includes(name), 'LIFECYCLE_LOCK_INVALID');
+  const db = new DatabaseSync(join(directory, name + '.sqlite'));
   let held = false;
   try {
     const deadline = Date.now() + 60000;

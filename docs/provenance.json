@@ -14,11 +14,7 @@
     "redistributed": false,
     "buildNote": "The base is content-pinned. apt package resolution during image build can change; deployments pin the resulting immutable local image ID. No built image is included in this package."
   },
-  "externalPrerequisites": [
-    "Node.js >=22.16",
-    "OpenSSL 3",
-    "local Docker with Linux containers"
-  ],
+  "externalPrerequisites": ["Node.js >=22.16", "OpenSSL 3", "local Docker with Linux containers"],
   "modelFixture": "Original deterministic test responses; no model weights, credentials or user transcripts are included.",
   "redistributedDependencies": [],
   "upstream": {
