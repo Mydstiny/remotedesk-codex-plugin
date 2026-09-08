@@ -15,10 +15,10 @@ import { renewServer } from "./pki.mjs";
 import { Store } from "./store.mjs";
 import { privateDirectory } from "./privacy.mjs";
 import { withLifecycleLock } from "./lifecycle-lock.mjs";
-import { service, watchStopRequests } from "./service.mjs";
+import { service, watchStopRequests, requestStop } from "./service.mjs";
 import { Fault, requireThat } from "./errors.mjs";
 const print = (v) => console.log(JSON.stringify(v, null, 2));
-const help = `Commands: doctor, probe, init, project-add, invite, revoke, status, renew-server, recover, serve, service, pair, read, write, retry, watch
+const help = `Commands: doctor, probe, init, project-add, invite, revoke, status, renew-server, recover, serve, stop, service, pair, read, write, retry, watch
 Global: --state <private directory> (default ~/.remotedesk/<engine>)
 init: --host <bind IP> --hosts <certificate DNS/IP,...> --port <port>
 project-add: --id <id> --path <project> [--title <title>] [--provider <host provider>] [--model <model>]
@@ -229,6 +229,11 @@ export async function main(
           confirmNativeCleanup: o["confirm-native-cleanup"],
         }),
       );
+      return;
+    }
+    if (command === "stop") {
+      await requestStop(state);
+      print({ stopped: true });
       return;
     }
     if (command === "serve") {

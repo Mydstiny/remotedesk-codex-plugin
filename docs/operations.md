@@ -44,7 +44,7 @@ Codex 默认 read-only/on-request，显式 workspace-write 允许沙箱内原生
 
 ## 用户后台服务
 
-先停止前台服务，再从持久版本目录运行：
+先在另一终端运行 `node bin/remotedesk-codex.mjs stop --state "$STATE"`，等待前台服务正常结束，再从持久版本目录运行：
 
 ```sh
 node bin/remotedesk-codex.mjs service --state "$STATE" --action render
@@ -76,8 +76,8 @@ node bin/remotedesk-codex.mjs recover --state "$STATE" --confirm-native-cleanup 
 
 ## 升级、续证和卸载
 
-升级顺序：停旧服务 → 备份私有 state/原生历史 → 从旧版本目录执行 `service --action uninstall`（仅移除服务注册，保留 state/项目）→ 解压并核验新目录 → DSH 重新 plugin-install → 从新目录安装服务 → 配对/模型/审批/取消/历史回归。0.2.0 升级改变工具和权限合同，先停止所有旧活动；不要把原生新版状态直接交给旧执行器继续工作。回滚使用维护前完整备份并核对未决操作。
+升级顺序：停旧服务 → 备份私有 state/原生历史 → 从旧版本目录执行 `service --state "$STATE" --action uninstall`（仅移除服务注册，保留 state/项目）→ 解压并核验新目录 → DSH 重新 plugin-install → 从新目录安装服务 → 配对/模型/审批/取消/历史回归。0.2.0 升级改变工具和权限合同，先停止所有旧活动；不要把原生新版状态直接交给旧执行器继续工作。回滚使用维护前完整备份并核对未决操作。
 
-`renew-server --state "$STATE"` 续签同一 CA/SAN 的服务证书后需重启。设备证书 90 天、服务证书一年、CA 十年；更换身份需要重新配对和撤销旧设备。`status` 查看设备 ID，`revoke --device <id>` 撤销并请求取消其远程活动。卸载前 stop，再 `service --action uninstall`；保留项目、state、原生账号和用户历史。
+`renew-server --state "$STATE"` 续签同一 CA/SAN 的服务证书后需重启。设备证书 90 天、服务证书一年、CA 十年；更换身份需要重新配对和撤销旧设备。`status` 查看设备 ID，`revoke --device <id>` 撤销并请求取消其远程活动。卸载前 stop，再 `service --state "$STATE" --action uninstall`；保留项目、state、原生账号和用户历史。
 
 常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。

@@ -15,11 +15,36 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 test(
   "managed stop orders cleanup before exit and preserves the default signal path",
   { timeout: 15000 },
-  async () => {
+  async (t) => {
     const root = await mkdtemp(
       join(tmpdir(), "remotedesk-review-stop-callback-"),
     );
-    const children = [];
+    const children = [],
+      stops = [];
+    let closed = false,
+      cleanupPromise;
+    const cleanup = () =>
+      (cleanupPromise ??= (async () => {
+        closed = true;
+        for (const { child, exit } of children) {
+          if (child.exitCode === null && child.signalCode === null)
+            child.kill("SIGKILL");
+          await exit.catch(() => {});
+        }
+        await Promise.allSettled(stops);
+        await rm(root, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 100,
+        });
+      })());
+    t.after(cleanup);
+    const track = (promise) => {
+      stops.push(promise);
+      promise.catch(() => {});
+      return promise;
+    };
     const childCode = `
 import { watchStopRequests } from ${JSON.stringify(moduleUrl)};
 import { writeFile, unlink } from 'node:fs/promises';
@@ -59,6 +84,7 @@ process.send({ phase: 'ready' });
       const state = await mkdtemp(join(root, mode + "-"));
       const events = [];
       let stderr = "";
+      assert.ok(!closed && !t.signal.aborted, "fixture already closed");
       const child = spawn(
         process.execPath,
         ["--input-type=module", "-e", childCode, state, mode],
@@ -66,10 +92,10 @@ process.send({ phase: 'ready' });
           stdio: ["ignore", "ignore", "pipe", "ipc"],
         },
       );
-      children.push(child);
       child.stderr.on("data", (data) => (stderr += data));
       child.on("message", (message) => events.push(message));
       const exit = once(child, "exit");
+      children.push({ child, exit });
       const wait = async (phase) => {
         const end = Date.now() + 5000;
         while (Date.now() < end) {
@@ -87,9 +113,11 @@ process.send({ phase: 'ready' });
     try {
       const callbackCase = await setup("callback");
       let callbackSettled = false;
-      const callbackStop = requestStop(callbackCase.state).then(() => {
-        callbackSettled = true;
-      });
+      const callbackStop = track(
+        requestStop(callbackCase.state).then(() => {
+          callbackSettled = true;
+        }),
+      );
       await callbackCase.wait("callback-start");
       await delay(650);
       assert.equal(callbackSettled, false);
@@ -128,9 +156,11 @@ process.send({ phase: 'ready' });
 
       const defaultCase = await setup("default");
       let defaultSettled = false;
-      const defaultStop = requestStop(defaultCase.state).then(() => {
-        defaultSettled = true;
-      });
+      const defaultStop = track(
+        requestStop(defaultCase.state).then(() => {
+          defaultSettled = true;
+        }),
+      );
       await delay(650);
       assert.equal(
         defaultCase.events.some((event) => event.phase === "signal"),
@@ -149,13 +179,7 @@ process.send({ phase: 'ready' });
       await defaultCase.exit;
       await defaultStop;
     } finally {
-      for (const child of children) {
-        if (child.exitCode === null && child.signalCode === null) {
-          child.kill("SIGKILL");
-          await once(child, "exit").catch(() => {});
-        }
-      }
-      await rm(root, { recursive: true, force: true });
+      await cleanup();
     }
   },
 );
