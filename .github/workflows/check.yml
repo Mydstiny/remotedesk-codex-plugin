@@ -29,6 +29,22 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --global --ignore-scripts @openai/codex@0.153.4
+      - name: Prepare native Linux sandbox
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          bwrap --version
+          for key in kernel.unprivileged_userns_clone kernel.apparmor_restrict_unprivileged_userns; do
+            if sysctl "$key"; then
+              case "$key" in
+                kernel.unprivileged_userns_clone) sudo sysctl -w "$key=1" ;;
+                kernel.apparmor_restrict_unprivileged_userns) sudo sysctl -w "$key=0" ;;
+              esac
+            fi
+          done
+          bwrap --die-with-parent --unshare-user --unshare-pid --unshare-net --ro-bind / / --proc /proc --dev /dev -- /bin/true
       - run: node bin/remotedesk-codex.mjs probe --json
       - run: node test/codex-runtime.mjs
       - run: node test/bridge-runtime.mjs
