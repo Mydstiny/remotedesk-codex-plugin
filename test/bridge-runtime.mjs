@@ -394,6 +394,19 @@ try {
   );
 } catch (error) {
   console.error(error);
+  const diagnostics = JSON.stringify({
+    events: bridge?.events,
+    results: provider.calls.slice(-2).map((c) => c.toolResults),
+  });
+  console.error(
+    JSON.stringify({
+      fixtureArgvLimit: /argument list too long|E2BIG|os error 7/i.test(
+        diagnostics,
+      ),
+      pendingApprovals: bridge?.asks?.size,
+      previewEntries: bridge?.adapter?.fileChanges?.size,
+    }),
+  );
   throw error;
 } finally {
   await bridge?.stop();
