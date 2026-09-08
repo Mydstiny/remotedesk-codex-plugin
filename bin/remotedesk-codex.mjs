@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
-import { main } from '../packages/bridge-core/lib/cli.mjs';
-import { Bridge } from '../packages/bridge-core/lib/server.mjs';
-import { doctor } from '../src/doctor.mjs';
-import { CodexAdapter } from '../src/codex-adapter.mjs';
+import { fileURLToPath } from "node:url";
+import { main } from "../packages/bridge-core/lib/cli.mjs";
+import { Bridge } from "../packages/bridge-core/lib/server.mjs";
+import { doctor } from "../src/doctor.mjs";
+import { CodexAdapter } from "../src/codex-adapter.mjs";
 await main({
-  engine: 'codex',
+  engine: "codex",
   entry: fileURLToPath(import.meta.url),
   doctor,
   serve: async (directory) => {
@@ -16,15 +16,17 @@ await main({
         try {
           await bridge.stop();
         } catch {
-          console.error('ENGINE_CLEANUP_UNCONFIRMED');
+          console.error("ENGINE_CLEANUP_UNCONFIRMED");
           process.exitCode = 2;
         }
       })());
-    process.once('SIGINT', stop);
-    process.once('SIGTERM', stop);
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
     try {
       await bridge.start();
-      console.log(JSON.stringify({ ready: true, engine: 'codex', protocol: 1 }));
+      console.log(
+        JSON.stringify({ ready: true, engine: "codex", protocol: 1 }),
+      );
     } catch (e) {
       await stop();
       throw e;

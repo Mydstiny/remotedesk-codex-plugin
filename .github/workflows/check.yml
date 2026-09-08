@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node: ['22', '24', '26']
+        node: ["22", "24", "26"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -27,10 +27,27 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22'
+          node-version: "22"
       - run: npm install --global --ignore-scripts @openai/codex@0.153.4
+      - name: Prepare native Linux sandbox
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          bwrap --version
+          for key in kernel.unprivileged_userns_clone kernel.apparmor_restrict_unprivileged_userns; do
+            if sysctl "$key"; then
+              case "$key" in
+                kernel.unprivileged_userns_clone) sudo sysctl -w "$key=1" ;;
+                kernel.apparmor_restrict_unprivileged_userns) sudo sysctl -w "$key=0" ;;
+              esac
+            fi
+          done
+          bwrap --die-with-parent --unshare-user --unshare-pid --unshare-net --ro-bind / / --proc /proc --dev /dev -- /bin/true
       - run: node bin/remotedesk-codex.mjs probe --json
       - run: node test/codex-runtime.mjs
+      - run: node test/bridge-runtime.mjs
 
   native-service:
     runs-on: ${{ matrix.os }}
@@ -42,7 +59,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Start an isolated CI runner user manager
         if: runner.os == 'Linux'
         shell: bash
@@ -50,19 +67,3 @@ jobs:
           sudo systemctl start "user@$(id -u).service"
           printf 'XDG_RUNTIME_DIR=/run/user/%s\n' "$(id -u)" >> "$GITHUB_ENV"
       - run: node test/service-runtime.mjs
-  docker-runtime:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: '22'
-      - run: npm install --global --ignore-scripts @openai/codex@0.153.4
-      - name: Build the pinned project image
-        shell: bash
-        run: |
-          docker build -t remotedesk-test packages/bridge-core/sandbox
-          printf 'REMOTEDESK_TEST_IMAGE=%s\n' "$(docker image inspect remotedesk-test --format '{{.Id}}')" >> "$GITHUB_ENV"
-      - run: node test/bridge-runtime.mjs
-      - run: node test/recovery-runtime.mjs
-      - run: node test/quiescence-runtime.mjs

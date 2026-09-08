@@ -1,6 +1,6 @@
 {
   "name": "remotedesk-codex-plugin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Authenticated RemoteDesk host bridge and setup guidance for Codex.",
   "author": {
     "name": "Mydstiny"

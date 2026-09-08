@@ -1,7 +1,5 @@
-# RemoteDesk bridge core
+# RemoteDesk bridge-core
 
-Original MIT implementation shared by the Codex and DSH host plugins. The public v1 wire contract lives in `packages/protocol` in the canonical Codex repository. See the host operations and security documentation for installation, limits and recovery procedures.
+Shared authenticated transport and lifecycle library for the native Codex and DSH adapters. Node.js 22.16+ provides TLS/HTTP and SQLite; OpenSSL 3 supplies local certificates. No npm runtime dependencies and no container runtime are required. Native tools, sandbox rules and managed process semantics belong to each pinned upstream engine.
 
-This package has no npm runtime dependencies. Node.js 22.16 or newer supplies SQLite, TLS and HTTP; certificate operations use the locally installed OpenSSL 3 executable. Restricted project tools use the locally installed Docker CLI and an administrator-selected immutable Linux image. These external runtimes are not bundled.
-
-DSH redistributes an exact tarball from this directory with its license and records the source commit and SHA256 in `docs/provenance.json`. Update that tarball, lockfile and bundled package together; never maintain a divergent copy of core source in DSH.
+Includes private state, pairing, mTLS grants, leases, receipts, event replay, project locks, native answer validation, reference client and current-user service management. Recovery keeps uncertain native work locked until the host operator explicitly confirms its exact cleanup digest.

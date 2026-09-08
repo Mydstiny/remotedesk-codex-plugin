@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Mydstiny/remotedesk-codex-plugin/packages/protocol/request-v1.schema.json",
-  "title": "RemoteDesk Bridge v1 request",
+  "title": "RemoteDesk native Bridge v1 request (0.3.0)",
   "oneOf": [
     {
       "type": "object",
@@ -53,6 +53,24 @@
               "minLength": 1,
               "maxLength": 100,
               "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "archived": {
+              "type": "boolean"
             }
           },
           "required": ["projectId"],
@@ -178,6 +196,34 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 200
+            },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "reasoningEffort": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "permissionMode": {
+                  "enum": ["read-only", "workspace-write"]
+                },
+                "collaborationMode": {
+                  "enum": ["default", "plan"]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
             }
           },
           "required": ["projectId"],
@@ -422,6 +468,34 @@
                 "pattern": "^[A-Za-z0-9_-]+$"
               },
               "maxItems": 4
+            },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "reasoningEffort": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "permissionMode": {
+                  "enum": ["read-only", "workspace-write"]
+                },
+                "collaborationMode": {
+                  "enum": ["default", "plan"]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
             }
           },
           "required": ["sessionId", "lease", "text"],
@@ -558,6 +632,9 @@
                   "properties": {
                     "decision": {
                       "enum": ["accept", "decline", "cancel"]
+                    },
+                    "scope": {
+                      "const": "turn"
                     }
                   },
                   "required": ["decision"],
@@ -566,13 +643,28 @@
                 {
                   "type": "object",
                   "properties": {
-                    "text": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 16000
+                    "answers": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "answers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 32000
+                            },
+                            "minItems": 1,
+                            "maxItems": 16
+                          }
+                        },
+                        "required": ["answers"],
+                        "additionalProperties": false
+                      }
                     }
                   },
-                  "required": ["text"],
+                  "required": ["answers"],
                   "additionalProperties": false
                 }
               ]
@@ -622,6 +714,299 @@
             }
           },
           "required": ["projectId", "mime", "data"],
+          "additionalProperties": false
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": ["method", "params", "operationId", "epoch"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "model.list"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": ["projectId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["method", "params"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "session.items"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "turnId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": ["sessionId", "turnId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["method", "params"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "terminal.list"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": ["sessionId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["method", "params"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "session.update"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "lease": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "reasoningEffort": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "permissionMode": {
+                  "enum": ["read-only", "workspace-write"]
+                },
+                "collaborationMode": {
+                  "enum": ["default", "plan"]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": ["sessionId", "lease"],
+          "additionalProperties": false
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": ["method", "params", "operationId", "epoch"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "session.fork"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "lease": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "lastTurnId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": ["sessionId", "lease"],
+          "additionalProperties": false
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": ["method", "params", "operationId", "epoch"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "session.compact"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "lease": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": ["sessionId", "lease"],
+          "additionalProperties": false
+        },
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": ["method", "params", "operationId", "epoch"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "terminal.stop"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "lease": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "processId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": ["sessionId", "lease", "processId"],
           "additionalProperties": false
         },
         "operationId": {

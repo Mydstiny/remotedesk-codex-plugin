@@ -1,7 +1,7 @@
-# Delivery boundary
+# 后续鸿蒙集成
 
-0.2.0 delivers the host protocol, both native adapters, project execution container, CLI pairing/controller, local service lifecycle, source tests and pinned-engine runtime tests. The protocol is version 1; any breaking wire change requires a new major protocol version.
+0.3.0 提供无容器的原生电脑端能力。下一阶段按 handshake.capabilities 实现工作台：主机配对、项目/会话、流式消息与工具卡片、模型/推理/权限、审批问答、差异、后台任务、取消和重连。两个引擎共享外层协议，保留原生内层消息格式和能力差异。
 
-The next separate task is the HarmonyOS Pro workbench: UI, on-device certificate storage, controller lease renewal, event reconnection, approvals, account entitlement integration and device acceptance. After LAN device acceptance, integrate the user's authenticated self-hosted RustDesk TCP port-forward route. Neither a public relay nor a generic hbbr HTTP proxy is provided by these plugins.
+安装入口提供两种引擎的固定版本说明、复制给本机助手的提示词和手动流程。Pro 功能映射为 pro.lifetime，但设备配对证书不等于购买凭据。端侧权益仍由 RemoteDesk 自己验证。
 
-ZCode and broader native-engine tool surfaces remain outside this version.
+先完成真实设备 LAN 验收，再接入用户自托管且授权的 RustDesk TCP port forwarding。没有默认公共 relay；主机原生端口不直接暴露。扩展、MCP、浏览器和子 agent 不在当前远程能力范围。
