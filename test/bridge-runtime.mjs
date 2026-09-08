@@ -403,6 +403,15 @@ try {
       fixtureArgvLimit: /argument list too long|E2BIG|os error 7/i.test(
         diagnostics,
       ),
+      fixtureFileVerification:
+        /apply_patch verification failed|Failed to read file/i.test(
+          diagnostics,
+        ),
+      fixtureHostPermission:
+        /Operation not permitted|Permission denied|os error [13]\b/i.test(
+          diagnostics,
+        ),
+      fixtureNamespace: /namespace|bubblewrap|bwrap/i.test(diagnostics),
       pendingApprovals: bridge?.asks?.size,
       previewEntries: bridge?.adapter?.fileChanges?.size,
     }),
