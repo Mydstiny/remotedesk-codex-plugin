@@ -33,7 +33,7 @@ retry: --client <directory> --operation <original operation id>
 watch: --client <directory> --cursor <snapshot cursor>
 `;
 export async function main(
-  { engine, doctor, serve, entry, extra },
+  { engine, doctor, serve, entry, extra, stop },
   argv = process.argv.slice(2),
 ) {
   const command = argv.shift();
@@ -242,7 +242,10 @@ export async function main(
       } catch (e) {
         if (e.code !== "ENOENT") throw e;
       }
-      const dispose = watchStopRequests(state);
+      const dispose = watchStopRequests(
+        state,
+        stop ? () => stop(state) : undefined,
+      );
       try {
         await serve(state, config, o);
       } catch (e) {

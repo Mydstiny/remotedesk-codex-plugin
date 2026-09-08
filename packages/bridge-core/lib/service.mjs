@@ -403,7 +403,7 @@ export async function requestStop(state) {
   }
   throw new Error("SERVICE_STOP_DID_NOT_SETTLE");
 }
-export function watchStopRequests(state) {
+export function watchStopRequests(state, onRequest) {
   let requested = false,
     busy = false;
   const file = join(state, "stop.request");
@@ -412,10 +412,14 @@ export function watchStopRequests(state) {
     busy = true;
     try {
       const value = JSON.parse(await readFile(file, "utf8"));
-      if (value.pid === process.pid && process.listenerCount("SIGTERM") > 0) {
+      if (
+        value.pid === process.pid &&
+        (onRequest || process.listenerCount("SIGTERM") > 0)
+      ) {
         requested = true;
         await unlink(file);
-        process.emit("SIGTERM");
+        if (onRequest) await onRequest();
+        else process.emit("SIGTERM");
       }
     } catch {
     } finally {
