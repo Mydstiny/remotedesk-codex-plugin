@@ -56,6 +56,8 @@ Codex model.list 对 OpenAI 返回原生分页目录；自定义 provider 仅列
 
 原生普通问题通过 approval.answer 回答；Codex delivery:async 的原生消息型问题作为普通用户明确输入，走 turn.steer 或 turn.start，不向旧 approvalId 回答，不自动启动回合。秘密输入在宿主完成。`pro.lifetime` 是未来 App 权益映射，本协议设备认证不构成购买验证。
 
+Codex 文件审批的 `request.nativeItem` 保存完整原生 `changes/path/kind/diff`（含移动目标），`nativeItemComplete:true` 表示内容完整。客户端重连后应从 `approval.list` 恢复预览；待审批条目尚未进入原生历史，不能仅依赖 `session.read` 或旧实时事件。单条预览最多 4 MB、全服务最多 8 MB / 32 条；缺失或超限时取消该原生请求并发送 `approval.unavailable` / `NATIVE_FILE_CHANGE_PREVIEW_UNAVAILABLE`，不会截断后允许盲批。控制端断线期间保留，答复、取消或原生活动结束后清理；服务重启不复活旧审批。
+
 ## 事件流和恢复
 
 `GET /v1/events?cursor=<外层快照cursor>&runtime=<handshake.runtime>` 使用相同 mTLS。SSE `id` 为全局递增 cursor，`data` 为 `{cursor,session,project,runtime,event}`。只发送授权项目；流会有 15 秒注释心跳。每设备最多两个流，慢客户端缓冲超过 1 MiB 断开。保留最多 2000 条/8 MiB 事件。

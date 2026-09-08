@@ -54,6 +54,16 @@ const provider = await fixtureProvider(async (request) => {
   }
   if (next === "hang") return { hang: true };
   mode = "text";
+  if (next === "patch")
+    return {
+      custom: {
+        name: "apply_patch",
+        input:
+          "*** Begin Patch\n*** Update File: edit-preview.txt\n*** Move to: moved-preview.txt\n@@\n-before\n+after\n*** Delete File: delete-preview.txt\n*** Add File: added-preview.txt\n+" +
+          "p".repeat(210000) +
+          "\n*** End Patch",
+      },
+    };
   if (next === "exec")
     return {
       call: {
@@ -173,6 +183,110 @@ try {
     answers: { wire: { answers: ["CODEX_WIRE_ANSWER"] } },
   });
   assert.ok(JSON.stringify(provider.calls).includes("CODEX_WIRE_ANSWER"));
+  await writeFile(join(workspace, "edit-preview.txt"), "before\n");
+  await writeFile(join(workspace, "delete-preview.txt"), "remove\n");
+  mode = "patch";
+  await call("turn.start", {
+    sessionId: id,
+    lease,
+    text: "Pending preview reconnect fixture",
+  });
+  const fileApproval = await waitFor(
+    async () => (await client.read("approval.list", { sessionId: id }))[0],
+  );
+  assert.equal(fileApproval.request.nativeItemComplete, true);
+  const changes = fileApproval.request.nativeItem.changes;
+  assert.equal(changes.length, 3);
+  assert.ok(
+    changes.some(
+      (c) =>
+        c.path.endsWith("added-preview.txt") &&
+        c.diff.includes("p".repeat(210000)),
+    ),
+  );
+  assert.ok(
+    changes.some(
+      (c) =>
+        c.path.endsWith("edit-preview.txt") &&
+        JSON.stringify(c.kind).includes("moved-preview.txt"),
+    ),
+  );
+  assert.ok(changes.some((c) => c.path.endsWith("delete-preview.txt")));
+  // The real native engine omits the pending file item from history. A fresh
+  // client must still recover it after the event window has moved past it.
+  for (let i = 0; i < 2005; i++)
+    bridge.emit(id, { type: "fixture.preview-window", i });
+  const reconnected = (await loadClient(directory)).client;
+  const whilePending = await reconnected.read("session.read", {
+    sessionId: id,
+  });
+  const pendingTurn = whilePending.snapshot.turns.find(
+    (t) => t.id === fileApproval.request.turnId,
+  );
+  assert.ok(!pendingTurn.items.some((item) => item.type === "fileChange"));
+  const restoredApproval = (
+    await reconnected.read("approval.list", { sessionId: id })
+  )[0];
+  assert.deepEqual(
+    restoredApproval.request.nativeItem,
+    fileApproval.request.nativeItem,
+  );
+  assert.ok(Buffer.byteLength(JSON.stringify(restoredApproval)) > 200000);
+  assert.equal(
+    (
+      await call("approval.answer", {
+        sessionId: id,
+        lease,
+        approvalId: restoredApproval.id,
+        answer: { decision: "decline" },
+      })
+    ).status,
+    "succeeded",
+  );
+  await waitFor(() => !bridge.adapter.runs.has(id));
+  assert.equal(bridge.adapter.fileChanges.size, 0);
+  assert.equal(bridge.adapter.fileChangeBytes, 0);
+  assert.equal(
+    await readFile(join(workspace, "edit-preview.txt"), "utf8"),
+    "before\n",
+  );
+  await assert.rejects(readFile(join(workspace, "added-preview.txt")), {
+    code: "ENOENT",
+  });
+  mode = "patch";
+  await call("turn.start", {
+    sessionId: id,
+    lease,
+    text: "Cancel pending preview fixture",
+  });
+  await waitFor(
+    async () => (await client.read("approval.list", { sessionId: id })).length,
+  );
+  assert.equal(
+    (await call("turn.cancel", { sessionId: id, lease })).status,
+    "succeeded",
+  );
+  assert.equal(bridge.adapter.fileChanges.size, 0);
+  assert.equal(bridge.adapter.fileChangeBytes, 0);
+  const remember = bridge.adapter.rememberFileChange;
+  bridge.adapter.rememberFileChange = () => {};
+  await turn("patch");
+  bridge.adapter.rememberFileChange = remember;
+  assert.equal(
+    (await client.read("approval.list", { sessionId: id })).length,
+    0,
+  );
+  await assert.rejects(readFile(join(workspace, "added-preview.txt")), {
+    code: "ENOENT",
+  });
+  assert.ok(
+    events.some(
+      (e) => e.event?.reason === "NATIVE_FILE_CHANGE_PREVIEW_UNAVAILABLE",
+    ),
+  );
+  console.log(
+    "PASS complete pending patch preview after fresh mTLS client and event eviction; decline/cancel cleanup and missing-preview refusal",
+  );
   const upload = await call("attachment.upload", {
     projectId: "p",
     mime: "text/plain",

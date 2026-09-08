@@ -167,6 +167,8 @@ export class CodexAdapter {
     this.loading = new Map();
     this.runs = new Map();
     this.pending = new Map();
+    this.fileChanges = new Map();
+    this.fileChangeBytes = 0;
     this.sessions = new Map();
     this.closed = false;
     this.blocked = new Set();
@@ -177,6 +179,38 @@ export class CodexAdapter {
   checkpoint(s, patch) {
     Object.assign(s, patch);
     this.core.checkpoint?.(s, patch);
+  }
+  fileChangeKey(s, turnId, itemId) {
+    return JSON.stringify([s.id, turnId, itemId]);
+  }
+  dropFileChange(key) {
+    const previous = this.fileChanges.get(key);
+    if (previous) this.fileChangeBytes -= previous.bytes;
+    this.fileChanges.delete(key);
+  }
+  clearFileChanges(s) {
+    for (const [key, value] of this.fileChanges)
+      if (value.session === s.id) this.dropFileChange(key);
+  }
+  rememberFileChange(s, params) {
+    const key = this.fileChangeKey(s, params.turnId, params.item.id);
+    this.dropFileChange(key);
+    const encoded = JSON.stringify(params.item),
+      bytes = Buffer.byteLength(encoded);
+    // Pending native patches are absent from history reads. Keep their full
+    // preview until approval ends, including across controller disconnections.
+    if (
+      bytes > 4000000 ||
+      this.fileChangeBytes + bytes > 8000000 ||
+      this.fileChanges.size >= 32
+    )
+      return;
+    this.fileChanges.set(key, {
+      session: s.id,
+      bytes,
+      item: JSON.parse(encoded),
+    });
+    this.fileChangeBytes += bytes;
   }
   async prepare() {
     requireThat(
@@ -498,6 +532,7 @@ export class CodexAdapter {
       return rpc;
     } catch (e) {
       await rpc.close();
+      this.clearFileChanges(s);
       if (dispatched) {
         this.checkpoint(s, { nativePhase: "unknown" });
         throw new Error("NATIVE_SESSION_OUTCOME_UNKNOWN", { cause: e });
@@ -828,6 +863,7 @@ export class CodexAdapter {
     if (run.finishPromise) return run.finishPromise;
     run.finished = true;
     run.controller.abort();
+    this.clearFileChanges(s);
     run.finishPromise = (async () => {
       try {
         const background = await this.allTerminals(s);
@@ -943,14 +979,12 @@ export class CodexAdapter {
       run?.turnId && !run.cancelRequested && !run.finished,
       "NO_ACTIVE_TURN",
     );
-    return this.rpcs
-      .get(s.id)
-      .request("turn/steer", {
-        threadId: s.upstream,
-        expectedTurnId: run.turnId,
-        input: [{ type: "text", text }],
-        clientUserMessageId: randomUUID(),
-      });
+    return this.rpcs.get(s.id).request("turn/steer", {
+      threadId: s.upstream,
+      expectedTurnId: run.turnId,
+      input: [{ type: "text", text }],
+      clientUserMessageId: randomUUID(),
+    });
   }
   async cancel(s) {
     if (!s) return;
@@ -984,6 +1018,10 @@ export class CodexAdapter {
   }
   notification(s, { method, params }) {
     if (params?.threadId !== s.upstream) return;
+    if (method === "item/started" && params.item?.type === "fileChange")
+      this.rememberFileChange(s, params);
+    if (method === "item/completed" && params.item?.type === "fileChange")
+      this.dropFileChange(this.fileChangeKey(s, params.turnId, params.item.id));
     if (method === "serverRequest/resolved")
       this.pending.get(`${s.id}:${params.requestId}`)?.abort();
     if (method === "turn/diff/updated")
@@ -1041,6 +1079,19 @@ export class CodexAdapter {
     };
     const kind = kinds[method];
     requireThat(kind, "UPSTREAM_METHOD_UNSUPPORTED");
+    const fileKey =
+      kind === "fileChange"
+        ? this.fileChangeKey(s, params.turnId, params.itemId)
+        : null;
+    const nativeItem = fileKey ? this.fileChanges.get(fileKey)?.item : null;
+    if (kind === "fileChange" && !nativeItem) {
+      this.core.emit(s.id, {
+        type: "approval.unavailable",
+        reason: "NATIVE_FILE_CHANGE_PREVIEW_UNAVAILABLE",
+        itemId: params.itemId,
+      });
+      return { decision: "cancel" };
+    }
     if (kind === "questions" && params.questions.some((q) => q.isSecret)) {
       this.core.emit(s.id, {
         type: "question.unavailable",
@@ -1059,6 +1110,7 @@ export class CodexAdapter {
         engine: "codex",
         nativeMethod: method,
         ...params,
+        ...(nativeItem ? { nativeItem, nativeItemComplete: true } : {}),
         ...(kind === "permissions"
           ? { grantScope: "turn", requiresExplicitScope: true }
           : { grantScope: "once" }),
@@ -1087,6 +1139,7 @@ export class CodexAdapter {
     } finally {
       run.controller.signal.removeEventListener("abort", abort);
       this.pending.delete(key);
+      if (fileKey) this.dropFileChange(fileKey);
     }
   }
   async deactivate(s) {
@@ -1097,6 +1150,7 @@ export class CodexAdapter {
       await rpc.close();
       this.rpcs.delete(s.id);
       this.sessions.delete(s.id);
+      this.clearFileChanges(s);
     }
   }
   close() {
@@ -1113,6 +1167,8 @@ export class CodexAdapter {
       }),
     );
     this.closed = true;
+    this.fileChanges.clear();
+    this.fileChangeBytes = 0;
     if (results.some((r) => r.status === "rejected")) {
       await Promise.allSettled([...this.rpcs.values()].map((r) => r.close()));
       throw new Fault("NATIVE_ACTIVITY_RECONCILIATION_REQUIRED");
