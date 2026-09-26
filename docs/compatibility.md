@@ -1,6 +1,8 @@
 # 兼容性与验证
 
-版本 **0.3.0 / protocol major 1**，Codex **0.153.4**；Node.js 22.16+、OpenSSL 3。精确组件门见 [compatibility.json](../compatibility.json)。使用原生沙箱，无容器运行时依赖。
+版本 **0.3.0 / protocol major 1**，Codex **0.153.4 或 0.156.1**；Node.js 22.16+、OpenSSL 3。精确组件门见 [compatibility.json](../compatibility.json)。使用原生沙箱，无容器运行时依赖。
+
+Codex 0.156.1 的 macOS arm64 兼容性证据：真实 `initialize`/只读临时线程探针通过；完整 `test/codex-runtime.mjs` 与 `test/bridge-runtime.mjs` 使用固定本地模型通过。上游版本对应 `rust-v0.156.1`（`81e8e29b2956dfe9b092c63953a9ed282781e77c`）。
 
 | 检查 | 覆盖 |
 | --- | --- |

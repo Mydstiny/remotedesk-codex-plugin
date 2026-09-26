@@ -2,7 +2,7 @@
 
 Version **0.3.0** uses native host tools and requires no Docker. It provides authenticated project access, sessions/history, model and reasoning selection, streaming native tool output, approvals/questions, steering/cancellation, forks, compaction and owned background-job controls.
 
-Requires Node **22.16+**, OpenSSL 3 and Codex **0.153.4**. Model authentication stays in the configured native host. Unknown engine versions fail closed.
+Requires Node **22.16+**, OpenSSL 3 and Codex **0.153.4 or 0.156.1**. Only exact versions listed in `compatibility.json` are accepted; unknown engine versions fail closed. Model authentication stays in the configured native host.
 
 Read [native permission boundaries](SECURITY.md), then follow [installation and operations](docs/operations.md). Verify the release archive against SHA256SUMS before extracting to a persistent version directory. The listener defaults to loopback port 9443; installing the plugin alone does not start it.
 
