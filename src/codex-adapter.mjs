@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { access, realpath, readFile } from "node:fs/promises";
+import { access, realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { StdioRpc } from "../packages/bridge-core/stdio-rpc.mjs";
@@ -12,10 +12,12 @@ import {
   fields,
   string,
 } from "../packages/bridge-core/lib/errors.mjs";
+import {
+  compatibility,
+  nodeVersionSupported,
+  parseCodexVersion,
+} from "./compatibility-policy.mjs";
 const exec = promisify(execFile);
-const compatibility = JSON.parse(
-  await readFile(new URL("../compatibility.json", import.meta.url)),
-);
 export const DISABLED_FEATURES = [
   "apps",
   "plugins",
@@ -217,6 +219,10 @@ export class CodexAdapter {
   }
   async prepare() {
     requireThat(
+      nodeVersionSupported(process.versions.node),
+      "NODE_VERSION_UNSUPPORTED",
+    );
+    requireThat(
       !this.core.storage.all("container").length,
       "LEGACY_CONTAINER_RECOVERY_REQUIRED",
     );
@@ -230,9 +236,7 @@ export class CodexAdapter {
       [...this.command.prefix, "--version"],
       { timeout: 5000, maxBuffer: 4096, windowsHide: true },
     );
-    const version = /^codex(?:-cli)?\s+(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*$/.exec(
-      stdout.trim(),
-    )?.[1];
+    const version = parseCodexVersion(stdout);
     requireThat(
       compatibility.codexVersions.includes(version),
       "CODEX_VERSION_UNVERIFIED",

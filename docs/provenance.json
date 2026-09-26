@@ -48,7 +48,8 @@
         "test/codex-runtime.mjs",
         "test/bridge-runtime.mjs"
       ],
-      "modelFixture": "deterministic local provider; no model credentials or user transcripts included"
+      "modelFixture": "deterministic local provider; no model credentials or user transcripts included",
+      "schemaEvidence": "runtime compatibility only; baseline schemaSha256 entries above remain for Codex 0.153.4"
     }
   ]
 }
