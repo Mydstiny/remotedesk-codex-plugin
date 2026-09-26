@@ -12,6 +12,11 @@ import {
   fields,
   string,
 } from "../packages/bridge-core/lib/errors.mjs";
+import {
+  compatibility,
+  nodeVersionSupported,
+  parseCodexVersion,
+} from "./compatibility-policy.mjs";
 const exec = promisify(execFile);
 export const DISABLED_FEATURES = [
   "apps",
@@ -214,6 +219,10 @@ export class CodexAdapter {
   }
   async prepare() {
     requireThat(
+      nodeVersionSupported(process.versions.node),
+      "NODE_VERSION_UNSUPPORTED",
+    );
+    requireThat(
       !this.core.storage.all("container").length,
       "LEGACY_CONTAINER_RECOVERY_REQUIRED",
     );
@@ -227,8 +236,9 @@ export class CodexAdapter {
       [...this.command.prefix, "--version"],
       { timeout: 5000, maxBuffer: 4096, windowsHide: true },
     );
+    const version = parseCodexVersion(stdout);
     requireThat(
-      /^codex(?:-cli)? 0\.153\.4\s*$/.test(stdout.trim()),
+      compatibility.codexVersions.includes(version),
       "CODEX_VERSION_UNVERIFIED",
     );
   }

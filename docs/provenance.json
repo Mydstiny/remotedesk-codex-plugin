@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedDate": "2026-09-07",
+  "recordedDate": "2026-09-26",
   "adapterVersion": "0.3.0",
   "originalCodeLicense": "MIT",
   "ciActions": {
@@ -35,5 +35,21 @@
       "ThreadBackgroundTerminalsTerminateParams": "4af4973b4e965228e7c6ffdff341c22c227c26bc48d4b44a8696993869b64103"
     }
   },
-  "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins"
+  "pluginManifestSource": "https://developers.openai.com/plugins/build/plugins",
+  "compatibilityEvidence": [
+    {
+      "version": "0.156.1",
+      "source": "https://github.com/openai/codex/tree/rust-v0.156.1",
+      "sourceCommit": "81e8e29b2956dfe9b092c63953a9ed282781e77c",
+      "platform": "darwin-arm64",
+      "node": "26.4.0",
+      "checks": [
+        "doctor/probe initialize and read-only ephemeral thread",
+        "test/codex-runtime.mjs",
+        "test/bridge-runtime.mjs"
+      ],
+      "modelFixture": "deterministic local provider; no model credentials or user transcripts included",
+      "schemaEvidence": "runtime compatibility only; baseline schemaSha256 entries above remain for Codex 0.153.4"
+    }
+  ]
 }

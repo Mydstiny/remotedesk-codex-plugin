@@ -1,15 +1,17 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexCommand } from "./codex-adapter.mjs";
 import { StdioRpc, BridgeError } from "../packages/bridge-core/stdio-rpc.mjs";
+import {
+  compatibility,
+  nodeVersionSupported,
+  parseCodexVersion,
+} from "./compatibility-policy.mjs";
 
 const exec = promisify(execFile);
-const compatibility = JSON.parse(
-  await readFile(new URL("../compatibility.json", import.meta.url)),
-);
 
 export async function doctor({ probe = false, command, signal } = {}) {
   const report = {
@@ -42,7 +44,7 @@ export async function doctor({ probe = false, command, signal } = {}) {
   };
   try {
     if (signal?.aborted) throw new BridgeError("PROBE_CANCELLED");
-    if (Number(process.versions.node.split(".")[0]) < 22)
+    if (!nodeVersionSupported(process.versions.node))
       throw new BridgeError("NODE_VERSION_UNSUPPORTED");
     const selected = await codexCommand(command);
     const { stdout } = await exec(
@@ -55,9 +57,7 @@ export async function doctor({ probe = false, command, signal } = {}) {
         signal,
       },
     );
-    const version = /^codex(?:-cli)?\s+(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*$/m.exec(
-      stdout,
-    )?.[1];
+    const version = parseCodexVersion(stdout);
     report.componentVersions.codex = version ?? null;
     if (!compatibility.codexVersions.includes(version))
       throw new BridgeError("CODEX_VERSION_UNVERIFIED");
