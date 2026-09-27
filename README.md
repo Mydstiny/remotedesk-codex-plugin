@@ -15,4 +15,4 @@ node bin/remotedesk-codex.mjs help
 
 默认监听 `127.0.0.1:9443`。注册 skill/bundle 本身不会开放监听；实际服务、模型账号及客户端连接需要各自验收。首次部署可把 [代理安装说明](docs/agent-deploy.md) 交给本机助手执行。
 
-[English](README.en.md) · [协议](docs/protocol.md) · [兼容性与验证](docs/compatibility.md) · [依赖来源](docs/provenance.json) · [鸿蒙开发边界](docs/roadmap.md)
+[English](README.en.md) · [本机控制面板](docs/control-panel.md) · [协议](docs/protocol.md) · [兼容性与验证](docs/compatibility.md) · [依赖来源](docs/provenance.json) · [鸿蒙开发边界](docs/roadmap.md)

@@ -26,6 +26,14 @@ node bin/remotedesk-codex.mjs project-add --state "$STATE" --id demo --path "/ab
 node bin/remotedesk-codex.mjs serve --state "$STATE"
 ```
 
+仅在本机浏览器打开管理面板：
+
+```sh
+node bin/remotedesk-codex.mjs panel --state "$STATE"
+```
+
+面板令牌只打印在启动输出中，且 API 仅接受 Authorization header。
+
 看到 `ready: true` 后，在另一终端创建两分钟有效的邀请并配对参考客户端：
 
 ```sh
