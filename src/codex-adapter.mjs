@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { access, realpath } from "node:fs/promises";
+import { access, readFile, realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { StdioRpc } from "../packages/bridge-core/stdio-rpc.mjs";
@@ -13,6 +13,9 @@ import {
   string,
 } from "../packages/bridge-core/lib/errors.mjs";
 const exec = promisify(execFile);
+const compatibility = JSON.parse(
+  await readFile(new URL("../compatibility.json", import.meta.url)),
+);
 export const DISABLED_FEATURES = [
   "apps",
   "plugins",
@@ -227,8 +230,11 @@ export class CodexAdapter {
       [...this.command.prefix, "--version"],
       { timeout: 5000, maxBuffer: 4096, windowsHide: true },
     );
+    const version = /^codex(?:-cli)?\s+(\d+\.\d+\.\d+(?:-[\w.]+)?)\s*$/m.exec(
+      stdout,
+    )?.[1];
     requireThat(
-      /^codex(?:-cli)? 0\.153\.4\s*$/.test(stdout.trim()),
+      typeof version === "string" && compatibility.codexVersions.includes(version),
       "CODEX_VERSION_UNVERIFIED",
     );
   }
