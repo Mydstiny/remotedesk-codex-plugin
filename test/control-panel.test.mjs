@@ -22,7 +22,11 @@ test("control panel stays loopback, authenticates API calls, and manages state",
       assert.equal(unauthorized.status, 401);
       const page = await fetch(panel.url);
       assert.equal(page.status, 200);
-      assert.match(await page.text(), /控制面板/);
+      const html = await page.text();
+      assert.match(html, /控制面板/);
+      assert.match(html, /prefers-color-scheme:dark/);
+      assert.match(html, /--panel-surface/);
+      assert.match(html, /background:var\(--panel-surface\)/);
       const headers = { Authorization: "Bearer " + panel.token };
       const wrongToken = await fetch("http://127.0.0.1:" + panel.port + "/api/status", { headers: { Authorization: "Bearer wrong" } });
       assert.equal(wrongToken.status, 401);
