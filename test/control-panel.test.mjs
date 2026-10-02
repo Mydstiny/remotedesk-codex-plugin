@@ -57,6 +57,7 @@ test("control panel stays loopback, authenticates API calls, and manages state",
       assert.equal(typeof invite.code, "string");
       assert.equal(invite.code.length > 20, true);
       assert.match(invitePayload.qr, /^data:image\/svg\+xml;base64,/);
+      assert.match(invitePayload.qrSvg, /^<svg /);
       assert.match(invitePayload.pairingLink, /^remotedesk:\/\/pair\?data=/);
       const store = new Store(state);
       store.put("device", "device-1", {

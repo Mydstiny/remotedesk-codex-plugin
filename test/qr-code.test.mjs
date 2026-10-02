@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { invitePairingLink, inviteQrDataUrl } from "../src/qr-code.mjs";
+import { invitePairingLink, inviteQrDataUrl, inviteQrSvg } from "../src/qr-code.mjs";
 
 test("pairing QR and link carry the exact invite fields", () => {
   const invite = {
@@ -11,6 +11,7 @@ test("pairing QR and link carry the exact invite fields", () => {
   };
   const qr = inviteQrDataUrl(invite);
   assert.match(qr, /^data:image\/svg\+xml;base64,/);
+  assert.match(inviteQrSvg(invite), /^<svg /);
   const link = invitePairingLink(invite, { host: "192.168.1.10", port: 9443 }, "codex");
   assert.match(link, /^remotedesk:\/\/pair\?data=/);
   const payload = JSON.parse(Buffer.from(link.split("data=")[1], "base64url").toString("utf8"));

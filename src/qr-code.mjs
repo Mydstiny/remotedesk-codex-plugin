@@ -4,6 +4,11 @@ const require = createRequire(import.meta.url);
 const qrcode = require("./vendor/qrcode-generator-2.0.4.cjs");
 
 export function inviteQrDataUrl(invite) {
+  const svg = inviteQrSvg(invite);
+  return "data:image/svg+xml;base64," + Buffer.from(svg, "utf8").toString("base64");
+}
+
+export function inviteQrSvg(invite) {
   const qr = qrcode(0, "M");
   qr.addData(JSON.stringify({
     code: invite.code,
@@ -12,8 +17,7 @@ export function inviteQrDataUrl(invite) {
     serverInstance: invite.serverInstance,
   }), "Byte");
   qr.make();
-  const svg = qr.createSvgTag(4, 4);
-  return "data:image/svg+xml;base64," + Buffer.from(svg, "utf8").toString("base64");
+  return qr.createSvgTag(4, 4);
 }
 
 export function invitePairingLink(invite, config, engine) {
