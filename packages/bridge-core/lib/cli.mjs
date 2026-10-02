@@ -242,7 +242,7 @@ export async function main(
         const saved = JSON.parse(
           await readFile(join(state, "service.json"), "utf8"),
         );
-        for (const k of ["PATH", "DSH_HOME"])
+        for (const k of ["PATH", "DSH_HOME", "CODEX_HOME"])
           if (typeof saved.environment?.[k] === "string")
             process.env[k] = saved.environment[k];
       } catch (e) {

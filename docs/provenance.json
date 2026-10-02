@@ -29,7 +29,7 @@
   ],
   "upstream": {
     "name": "Codex CLI",
-    "version": "0.153.4, 0.157.1",
+    "version": "0.153.4, 0.157.1, 0.159.2",
     "use": "Externally installed pinned App Server, native tools, native thread management and approval callbacks. Generated schema source is inspected but not redistributed.",
     "source": "https://github.com/openai/codex/tree/rust-v0.153.4",
     "verifiedReleases": [
@@ -44,6 +44,12 @@
         "commit": "ac0e23e5232692b95268583c8278c50b8c436d2b",
         "source": "https://github.com/openai/codex/tree/rust-v0.157.1",
         "verification": "Local App Server initialize and read-only thread/start passed; no model turn."
+      },
+      {
+        "version": "0.159.2",
+        "commit": "8b9fa496bbf2c47aebd62e85a080b9a522a455b5",
+        "source": "https://github.com/openai/codex/tree/rust-v0.159.2",
+        "verification": "Isolated CODEX_HOME App Server initialize and read-only thread/start passed; no model turn."
       }
     ],
     "documentation": "https://learn.chatgpt.com/docs/app-server",

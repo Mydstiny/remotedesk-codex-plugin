@@ -202,6 +202,7 @@ test("service definitions quote paths and use current-user non-elevated managers
   };
   const mac = serviceDefinition({ ...common, platform: "darwin" });
   assert.match(mac.text, /<string>\/app folder\/cli.mjs<\/string>/);
+  assert.match(mac.text, /<key>CODEX_HOME<\/key>/);
   const linux = serviceDefinition({ ...common, platform: "linux" });
   assert.match(linux.text, /KillMode=control-group/);
   assert.match(
