@@ -10,7 +10,7 @@ test("pairing QR and link carry the exact invite fields", () => {
     serverInstance: "server-instance-0123456789",
   };
   const qr = inviteQrDataUrl(invite);
-  assert.match(qr, /^data:image\/gif;base64,/);
+  assert.match(qr, /^data:image\/svg\+xml;base64,/);
   const link = invitePairingLink(invite, { host: "192.168.1.10", port: 9443 }, "codex");
   assert.match(link, /^remotedesk:\/\/pair\?data=/);
   const payload = JSON.parse(Buffer.from(link.split("data=")[1], "base64url").toString("utf8"));

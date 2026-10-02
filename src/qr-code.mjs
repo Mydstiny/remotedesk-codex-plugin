@@ -12,7 +12,8 @@ export function inviteQrDataUrl(invite) {
     serverInstance: invite.serverInstance,
   }), "Byte");
   qr.make();
-  return qr.createDataURL(4, 4);
+  const svg = qr.createSvgTag(4, 4);
+  return "data:image/svg+xml;base64," + Buffer.from(svg, "utf8").toString("base64");
 }
 
 export function invitePairingLink(invite, config, engine) {
