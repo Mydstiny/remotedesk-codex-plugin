@@ -1,4 +1,5 @@
 RemoteDesk Codex Plugin 0.3.0
 Original integration, protocol, reference client and bridge code: Copyright 2026 Mydstiny, MIT.
 Upstream engines, Node.js and OpenSSL are externally installed; their binaries are not redistributed.
+The control panel includes qrcode-generator 2.0.4, Copyright (c) 2009 Kazuhiko Arase, MIT; see docs/provenance.json.
 See docs/provenance.json for exact sources, versions and hashes.

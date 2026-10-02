@@ -52,9 +52,12 @@ test("control panel stays loopback, authenticates API calls, and manages state",
         body: JSON.stringify({ projects: ["demo"], role: "viewer" }),
       });
       assert.equal(inviteResponse.status, 200);
-      const invite = (await inviteResponse.json()).invite;
+      const invitePayload = await inviteResponse.json();
+      const invite = invitePayload.invite;
       assert.equal(typeof invite.code, "string");
       assert.equal(invite.code.length > 20, true);
+      assert.match(invitePayload.qr, /^data:image\/gif;base64,/);
+      assert.match(invitePayload.pairingLink, /^remotedesk:\/\/pair\?data=/);
       const store = new Store(state);
       store.put("device", "device-1", {
         id: "device-1",

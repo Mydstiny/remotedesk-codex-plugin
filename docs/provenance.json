@@ -13,7 +13,20 @@
     "OpenSSL 3"
   ],
   "modelFixture": "Original deterministic local test responses; no model weights, credentials or user transcripts included.",
-  "redistributedDependencies": [],
+  "redistributedDependencies": [
+    {
+      "name": "qrcode-generator",
+      "version": "2.0.4",
+      "license": "MIT",
+      "file": "src/vendor/qrcode-generator-2.0.4.cjs",
+      "sha256": "79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c",
+      "source": "https://github.com/kazuhikoarase/qrcode-generator",
+      "sourceVersion": "2.0.4",
+      "sourceArchiveSha256": "02e2e18a99a90b02dad940851f59b7c3c5fd1ab79cbdece8595cb06328878159",
+      "bundled": true,
+      "modifications": "Used by the loopback control panel to render the in-memory pairing QR payload."
+    }
+  ],
   "upstream": {
     "name": "Codex CLI",
     "version": "0.153.4, 0.157.1",

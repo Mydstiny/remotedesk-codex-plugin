@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { configuration, addProject, invite, revoke, status } from "../packages/bridge-core/lib/admin.mjs";
 import { Store } from "../packages/bridge-core/lib/store.mjs";
 import { privateDirectory } from "../packages/bridge-core/lib/privacy.mjs";
+import { invitePairingLink, inviteQrDataUrl } from "./qr-code.mjs";
 
 const MAX_BODY = 100 * 1024;
 const DEFAULT_PORTS = { codex: 9543, dsh: 9544 };
@@ -31,6 +32,7 @@ const PAGE = [
   "input,select,textarea{box-sizing:border-box;border:1px solid var(--panel-input-border);border-radius:7px;padding:8px;font:inherit;width:100%;background:var(--panel-input);color:var(--panel-text)}textarea{min-height:145px;font-family:ui-monospace,monospace;font-size:.82rem}",
   "label{display:block;font-size:.86rem;margin:9px 0 4px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.project-check{display:flex;gap:8px;align-items:center;margin:6px 0}.project-check input{width:auto}",
   "table{width:100%;border-collapse:collapse;font-size:.88rem}th,td{text-align:left;padding:7px;border-bottom:1px solid var(--panel-row-border);vertical-align:top}th{font-weight:600}.empty{padding:12px 0}.notice{border-radius:8px;padding:10px 12px;margin-top:16px;background:var(--panel-notice);color:var(--panel-notice-text)}.notice.error{background:var(--panel-bad-bg);color:var(--panel-bad-text)}",
+  ".pairing-view{display:flex;flex-direction:column;gap:10px;margin-top:12px}.qr-box{display:flex;justify-content:center;width:fit-content;max-width:100%;padding:16px;border:1px solid var(--panel-border);border-radius:12px;background:#fff}.qr-image{display:block;width:240px;height:240px;image-rendering:pixelated}.pairing-link{padding:12px;border:1px solid var(--panel-border);border-radius:8px;background:var(--panel-input);color:var(--panel-text);font:12px ui-monospace,monospace;line-height:1.5;word-break:break-all;user-select:text}",
   "button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #8ab4f8;outline-offset:2px}",
   "</style>",
   "</head>",
@@ -47,7 +49,7 @@ const PAGE = [
   "<article class='card'><h2>项目</h2><div id='projects'>加载中…</div><form id='project-form'><label for='project-id'>项目 ID</label><input id='project-id' required pattern='[A-Za-z0-9_-]+' maxlength='100'><label for='project-path'>本机项目目录</label><input id='project-path' required placeholder='/absolute/project/path'><label for='project-title'>显示名称</label><input id='project-title' maxlength='200'><div class='actions'><button type='submit'>添加项目</button></div></form></article>",
   "</section>",
   "<section class='grid'>",
-  "<article class='card'><h2>创建配对邀请</h2><form id='invite-form'><div id='project-checks'></div><label for='invite-role'>权限</label><select id='invite-role'><option value='operator'>operator（可操作）</option><option value='viewer'>viewer（只读）</option></select><div class='actions'><button type='submit'>生成 120 秒邀请</button></div></form><label for='invite-output'>邀请内容（仅在本机显示）</label><textarea id='invite-output' readonly></textarea></article>",
+  "<article class='card'><h2>创建配对邀请</h2><form id='invite-form'><div id='project-checks'></div><label for='invite-role'>权限</label><select id='invite-role'><option value='operator'>operator（可操作）</option><option value='viewer'>viewer（只读）</option></select><div class='actions'><button type='submit'>生成 120 秒邀请</button></div></form><label for='pair-method'>配对方式</label><select id='pair-method'><option value='qr'>二维码（默认）</option><option value='link'>链接配对</option></select><div id='pairing-view' class='pairing-view' hidden></div><label for='invite-output'>完整邀请 JSON（仅在本机显示）</label><textarea id='invite-output' readonly></textarea></article>",
   "<article class='card'><h2>使用说明</h2><p class='muted'>面板只绑定 127.0.0.1。它显示服务锁、已配对设备和项目配置；协议目前没有客户端在线心跳，所以“已配对”不等于客户端当前在线。</p><p class='muted'>邀请包含设备证书材料，只通过可信渠道传给要配对的设备；完成配对后删除传输副本。</p></article>",
   "</section>",
   "</main>",
@@ -55,10 +57,12 @@ const PAGE = [
   "const initialToken=new URLSearchParams(location.search).get('token');",
   "if(initialToken){sessionStorage.setItem('remotedesk.panel.token',initialToken);history.replaceState(null,'','/');}",
   "const token=sessionStorage.getItem('remotedesk.panel.token')||'';",
+  "let latestPairing=null;",
   "const $=id=>document.getElementById(id);",
   "const esc=value=>String(value??'').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[ch]));",
   "function notice(message,error=false){const el=$('notice');el.textContent=message;el.className=error?'notice error':'notice';el.hidden=!message;}",
   "async function api(path,options={}){const headers=Object.assign({'Authorization':'Bearer '+token},options.headers||{});if(options.body)headers['Content-Type']='application/json';const response=await fetch(path,Object.assign({},options,{headers}));let data;try{data=await response.json()}catch{data={}}if(!response.ok)throw new Error(data.error||('HTTP_'+response.status));return data;}",
+  "function renderPairing(payload){latestPairing=payload;const view=$('pairing-view');if(payload===null){view.hidden=true;view.innerHTML='';return}view.hidden=false;if($('pair-method').value==='link'){view.innerHTML='<div class=\"pairing-link\">'+esc(payload.pairingLink||'')+'</div><div class=\"muted\">复制链接并在支持 RemoteDesk 配对的客户端打开。</div><div class=\"actions\"><button id=\"copy-pairing-link\" type=\"button\">复制配对链接</button></div>';const button=$('copy-pairing-link');button?.addEventListener('click',async()=>{if(navigator.clipboard)await navigator.clipboard.writeText(payload.pairingLink||'');notice('配对链接已复制')});return}view.innerHTML=payload.qr?'<div class=\"qr-box\"><img class=\"qr-image\" alt=\"二维码配对\" src=\"'+esc(payload.qr)+'\"></div><div class=\"muted\">用手机扫描二维码；二维码不可用时切换到链接配对。</div>':'<div class=\"notice error\">二维码暂时不可用，请切换到链接配对。</div>';}",
   "function serviceText(service){const label=service.running?'运行中':service.lock==='stale'?'锁文件陈旧':'未运行';const cls=service.running?'ok':service.lock==='stale'?'warn':'bad';return '<div class=\"row\"><span>状态</span><span class=\"badge '+cls+'\">'+label+'</span></div><div class=\"row\"><span>监听</span><span>'+esc(service.host)+':'+esc(service.port)+'</span></div><div class=\"row\"><span>进程</span><span>'+esc(service.pid||'—')+'</span></div>';}",
   "function render(data){$('subtitle').textContent=esc(data.engine.toUpperCase())+' · 控制面板仅限本机 · '+new Date().toLocaleTimeString();$('service').innerHTML=serviceText(data.service);$('summary').innerHTML='<div class=\"row\"><span>项目</span><b>'+data.projects.length+'</b></div><div class=\"row\"><span>已配对设备</span><b>'+data.devices.filter(d=>d.status==='paired').length+'</b></div><div class=\"row\"><span>会话</span><b>'+data.sessions.length+'</b></div><div class=\"row\"><span>操作记录</span><b>'+Object.values(data.operations).reduce((a,b)=>a+b,0)+'</b></div>';",
   "const projects=data.projects.map(p=>'<div class=\"row\"><span><b>'+esc(p.title)+'</b><br><small class=\"muted\">'+esc(p.id)+' · '+esc(p.path)+'</small></span><span class=\"badge\">'+esc(p.provider||'default')+'</span></div>').join('')||'<div class=\"empty muted\">尚未配置项目</div>';$('projects').innerHTML=projects;",
@@ -67,7 +71,8 @@ const PAGE = [
   "async function refresh(){if(!token){notice('控制令牌缺失。请使用插件启动时输出的本机面板 URL 打开。',true);return}try{notice('');render(await api('/api/status'))}catch(error){notice(error.message,true)}}",
   "$('refresh').addEventListener('click',refresh);",
   "$('project-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;try{await api('/api/project',{method:'POST',body:JSON.stringify({id:$('project-id').value,path:$('project-path').value,title:$('project-title').value||undefined})});event.target.reset();notice('项目已添加；服务重启后会加载新的项目配置');await refresh()}catch(error){notice(error.message,true)}finally{button.disabled=false}});",
-  "$('invite-form').addEventListener('submit',async event=>{event.preventDefault();const projects=[...document.querySelectorAll('input[name=project]:checked')].map(input=>input.value);if(!projects.length){notice('至少选择一个项目',true);return}const button=event.target.querySelector('button');button.disabled=true;try{const result=await api('/api/invite',{method:'POST',body:JSON.stringify({projects,role:$('invite-role').value})});$('invite-output').value=JSON.stringify(result.invite,null,2);notice('邀请已生成，120 秒后过期')}catch(error){notice(error.message,true)}finally{button.disabled=false}});",
+  "$('pair-method').addEventListener('change',()=>renderPairing(latestPairing));",
+  "$('invite-form').addEventListener('submit',async event=>{event.preventDefault();const projects=[...document.querySelectorAll('input[name=project]:checked')].map(input=>input.value);if(!projects.length){notice('至少选择一个项目',true);return}const button=event.target.querySelector('button');button.disabled=true;try{const result=await api('/api/invite',{method:'POST',body:JSON.stringify({projects,role:$('invite-role').value})});$('invite-output').value=JSON.stringify(result.invite,null,2);$('pair-method').value='qr';renderPairing({qr:result.qr,pairingLink:result.pairingLink});notice('邀请已生成，120 秒后过期')}catch(error){renderPairing(null);notice(error.message,true)}finally{button.disabled=false}});",
   "refresh();",
   "</script>",
   "</body>",
@@ -245,7 +250,13 @@ export async function startControlPanel(state, { engine, port } = {}) {
           throw new Error("PROJECTS_REQUIRED");
         const role = input.role === undefined ? "operator" : input.role;
         if (!["viewer", "operator"].includes(role)) throw new Error("ROLE_INVALID");
-        json(res, 200, { invite: await invite(state, { projects: input.projects, role }) });
+        const created = await invite(state, { projects: input.projects, role });
+        const config = await configuration(state);
+        json(res, 200, {
+          invite: created,
+          qr: inviteQrDataUrl(created),
+          pairingLink: invitePairingLink(created, config, "codex"),
+        });
         return;
       }
       if (req.method === "POST" && url.pathname === "/api/revoke") {
