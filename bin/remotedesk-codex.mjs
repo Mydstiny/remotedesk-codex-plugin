@@ -4,6 +4,7 @@ import { main } from "../packages/bridge-core/lib/cli.mjs";
 import { Bridge } from "../packages/bridge-core/lib/server.mjs";
 import { doctor } from "../src/doctor.mjs";
 import { CodexAdapter } from "../src/codex-adapter.mjs";
+import { runControlPanel } from "../src/control-panel.mjs";
 await main({
   engine: "codex",
   entry: fileURLToPath(import.meta.url),
@@ -31,5 +32,11 @@ await main({
       await stop();
       throw e;
     }
+  },
+  extra: async (command, state, _config, o) => {
+    if (command !== "panel") return false;
+    const port = o.port === undefined ? undefined : Number(o.port);
+    await runControlPanel(state, { engine: "codex", port });
+    return true;
   },
 });

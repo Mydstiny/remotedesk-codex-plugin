@@ -18,7 +18,7 @@ import { withLifecycleLock } from "./lifecycle-lock.mjs";
 import { service, watchStopRequests, requestStop } from "./service.mjs";
 import { Fault, requireThat } from "./errors.mjs";
 const print = (v) => console.log(JSON.stringify(v, null, 2));
-const help = `Commands: doctor, probe, init, project-add, invite, revoke, status, renew-server, recover, serve, stop, service, pair, read, write, retry, watch
+const help = `Commands: doctor, probe, init, project-add, invite, revoke, status, renew-server, recover, serve, stop, service, panel, pair, read, write, retry, watch
 Global: --state <private directory> (default ~/.remotedesk/<engine>)
 init: --host <bind IP> --hosts <certificate DNS/IP,...> --port <port>
 project-add: --id <id> --path <project> [--title <title>] [--provider <host provider>] [--model <model>]
@@ -27,6 +27,7 @@ revoke: --device <device id>; recover: only after this bridge process is stopped
 recover --action inspect: list uncertain native activity and its acknowledgement digest
 recover --confirm-native-cleanup <digest>: confirm you stopped all listed native work on the host
 service: --action render|install|start|stop|status|uninstall [--out <definition file>]
+panel: [--port <loopback port>] (default 9543 for Codex, 9544 for DSH)
 pair: --client <new private directory> --url <https endpoint> --invite <file> [--servername <cert hostname>]
 read/write: --client <directory> --method <protocol method> --params <JSON file>
 retry: --client <directory> --operation <original operation id>
@@ -241,7 +242,7 @@ export async function main(
         const saved = JSON.parse(
           await readFile(join(state, "service.json"), "utf8"),
         );
-        for (const k of ["PATH", "DSH_HOME"])
+        for (const k of ["PATH", "DSH_HOME", "CODEX_HOME"])
           if (typeof saved.environment?.[k] === "string")
             process.env[k] = saved.environment[k];
       } catch (e) {

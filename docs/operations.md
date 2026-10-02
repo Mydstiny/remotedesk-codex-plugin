@@ -4,7 +4,7 @@
 
 核对 README、compatibility.json、SECURITY 和 Release 的 SHA256SUMS。将归档解压到当前用户可写的持久版本目录，例如 `RemoteDesk/codex/0.3.0`。所有命令从该目录运行。使用普通用户；不要让服务引用临时目录，不以 root/SYSTEM 运行。
 
-需要 Node.js 22.16+、OpenSSL 3、Codex **0.153.4**。使用宿主原有 provider 配置，不复制/显示密钥，不修改全局模型默认值。`doctor --json` 只验证版本和结构，实际模型调用需单独测试。无需容器、镜像或 Docker daemon。
+需要 Node.js 22.16+、OpenSSL 3、Codex **0.153.4、0.157.1 或 0.159.2**。使用宿主原有 provider 配置，不复制/显示密钥，不修改全局模型默认值。`doctor --json` 只验证版本和结构，实际模型调用需单独测试。无需容器、镜像或 Docker daemon。
 
 ## 初始化和授权项目
 
@@ -25,6 +25,14 @@ node bin/remotedesk-codex.mjs project-add --state "$STATE" --id demo --path "/ab
 ```sh
 node bin/remotedesk-codex.mjs serve --state "$STATE"
 ```
+
+仅在本机浏览器打开管理面板：
+
+```sh
+node bin/remotedesk-codex.mjs panel --state "$STATE"
+```
+
+面板令牌只打印在启动输出中，且 API 仅接受 Authorization header。
 
 看到 `ready: true` 后，在另一终端创建两分钟有效的邀请并配对参考客户端：
 

@@ -1,6 +1,6 @@
 # 兼容性与验证
 
-版本 **0.3.0 / protocol major 1**，Codex **0.153.4**；Node.js 22.16+、OpenSSL 3。精确组件门见 [compatibility.json](../compatibility.json)。使用原生沙箱，无容器运行时依赖。
+版本 **0.3.0 / protocol major 1**，Codex **0.153.4、0.157.1 或 0.159.2**；Node.js 22.16+、OpenSSL 3。精确组件门见 [compatibility.json](../compatibility.json)。使用原生沙箱，无容器运行时依赖。
 
 | 检查 | 覆盖 |
 | --- | --- |
@@ -14,3 +14,7 @@
 原生读取/网络/后台进程限制见 SECURITY。Windows DSH 上游写隔离是 partial；Codex 固定使用原生 unelevated Windows sandbox，不自动配置管理员 sandbox。macOS x64、Windows arm64、无人登录启动、任意用户扩展/工具链不属于默认已验矩阵。
 
 HarmonyOS UI、设备证书存储、真实双机 LAN、设备断线重连、Pro 权益和 RustDesk 传输仍需独立端侧验收。服务 ready、CI 通过、真实宿主模型可用是不同证据；发布说明记录实际完成范围。
+
+Codex **0.157.1** 的本机证据：官方 tag `rust-v0.157.1`（commit `ac0e23e5232692b95268583c8278c50b8c436d2b`），App Server `initialize` 和只读 `thread/start` 均通过；没有执行真实模型回合。原生全流程仍需在非嵌套 macOS 沙箱环境运行。
+
+Codex **0.159.2** 的本机证据：官方 tag `rust-v0.159.2`（commit `8b9fa496bbf2c47aebd62e85a080b9a522a455b5`），使用隔离 `CODEX_HOME` 运行 App Server，`initialize` 和只读 `thread/start` 均通过；没有执行真实模型回合。原生全流程仍需独立验收。
