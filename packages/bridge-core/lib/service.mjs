@@ -205,8 +205,8 @@ async function serviceInternal(action, options) {
         environment: {
           PATH: process.env.PATH ?? "",
           ...(process.env.DSH_HOME ? { DSH_HOME: process.env.DSH_HOME } : {}),
-          ...(engine === "codex"
-            ? { CODEX_HOME: join(state, "codex-home") }
+          ...(options.engine === "codex"
+            ? { CODEX_HOME: join(options.state, "codex-home") }
             : {}),
         },
       };
