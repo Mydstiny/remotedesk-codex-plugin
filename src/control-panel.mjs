@@ -6,78 +6,10 @@ import { configuration, addProject, invite, revoke, status } from "../packages/b
 import { Store } from "../packages/bridge-core/lib/store.mjs";
 import { privateDirectory } from "../packages/bridge-core/lib/privacy.mjs";
 import { invitePairingLink, inviteQrDataUrl, inviteQrSvg } from "./qr-code.mjs";
+import { controlPanelPage } from "./control-panel-page.mjs";
 
 const MAX_BODY = 100 * 1024;
 const DEFAULT_PORTS = { codex: 9543, dsh: 9544 };
-
-const PAGE = [
-  "<!doctype html>",
-  "<html lang='zh-CN'>",
-  "<head>",
-  "<meta charset='utf-8'>",
-  "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-  "<title>RemoteDesk 控制面板</title>",
-  "<style>",
-  ":root{color-scheme:light dark;--panel-bg:#f4f6f8;--panel-surface:#fff;--panel-border:#dbe1e6;--panel-text:#17202a;--panel-muted:#52606d;--panel-input:#fff;--panel-input-border:#c7d0d8;--panel-row-border:#dbe1e6;--panel-badge:#e8edf1;--panel-badge-text:#17202a;--panel-notice:#e8f1ff;--panel-notice-text:#174b86;--panel-ok-bg:#d7f4df;--panel-ok-text:#145c2a;--panel-warn-bg:#fff0c2;--panel-warn-text:#765100;--panel-bad-bg:#ffdede;--panel-bad-text:#8b1e1e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.45}",
-  "@media(prefers-color-scheme:dark){:root{--panel-bg:#15191e;--panel-surface:#20262d;--panel-border:#3a4652;--panel-text:#eef2f5;--panel-muted:#b8c3ce;--panel-input:#15191e;--panel-input-border:#586777;--panel-row-border:#3a4652;--panel-badge:#36414c;--panel-badge-text:#eef2f5;--panel-notice:#293f5c;--panel-notice-text:#dbeafe;--panel-ok-bg:#214c32;--panel-ok-text:#b8f1c9;--panel-warn-bg:#5a481c;--panel-warn-text:#ffe39a;--panel-bad-bg:#5d2b2b;--panel-bad-text:#ffd1d1}}",
-  "body{margin:0;background:var(--panel-bg);color:var(--panel-text)}",
-  "main{max-width:1100px;margin:0 auto;padding:24px}",
-  "header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}",
-  "h1{font-size:1.45rem;margin:0}.subtitle{margin:.25rem 0 0;color:var(--panel-muted)}",
-  ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px}",
-  ".card{background:var(--panel-surface);border:1px solid var(--panel-border);border-radius:12px;padding:16px;box-shadow:0 2px 8px #12203312}",
-  ".card h2{font-size:1rem;margin:0 0 12px}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:7px 0}",
-  ".muted{color:var(--panel-muted)}.badge{border-radius:999px;padding:2px 9px;font-size:.78rem;font-weight:600;background:var(--panel-badge);color:var(--panel-badge-text)}.ok{background:var(--panel-ok-bg);color:var(--panel-ok-text)}.warn{background:var(--panel-warn-bg);color:var(--panel-warn-text)}.bad{background:var(--panel-bad-bg);color:var(--panel-bad-text)}",
-  "button{border:0;border-radius:7px;background:#1769d1;color:#fff;padding:8px 12px;font:inherit;cursor:pointer}button.secondary{background:#687582}button.danger{background:#b72b2b}button:disabled{opacity:.55;cursor:wait}",
-  "input,select,textarea{box-sizing:border-box;border:1px solid var(--panel-input-border);border-radius:7px;padding:8px;font:inherit;width:100%;background:var(--panel-input);color:var(--panel-text)}textarea{min-height:145px;font-family:ui-monospace,monospace;font-size:.82rem}",
-  "label{display:block;font-size:.86rem;margin:9px 0 4px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.project-check{display:flex;gap:8px;align-items:center;margin:6px 0}.project-check input{width:auto}",
-  "table{width:100%;border-collapse:collapse;font-size:.88rem}th,td{text-align:left;padding:7px;border-bottom:1px solid var(--panel-row-border);vertical-align:top}th{font-weight:600}.empty{padding:12px 0}.notice{border-radius:8px;padding:10px 12px;margin-top:16px;background:var(--panel-notice);color:var(--panel-notice-text)}.notice.error{background:var(--panel-bad-bg);color:var(--panel-bad-text)}",
-  ".pairing-view{display:flex;flex-direction:column;gap:10px;margin-top:12px}.qr-box{display:flex;justify-content:center;width:fit-content;max-width:100%;padding:16px;border:1px solid var(--panel-border);border-radius:12px;background:#fff}.qr-svg{display:block;width:240px;height:240px;image-rendering:pixelated}.pairing-link{padding:12px;border:1px solid var(--panel-border);border-radius:8px;background:var(--panel-input);color:var(--panel-text);font:12px ui-monospace,monospace;line-height:1.5;word-break:break-all;user-select:text}",
-  "button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #8ab4f8;outline-offset:2px}",
-  "</style>",
-  "</head>",
-  "<body>",
-  "<main>",
-  "<header><div><h1>RemoteDesk 控制面板</h1><div class='subtitle' id='subtitle'>正在加载状态…</div></div><div class='actions'><button id='refresh'>刷新状态</button></div></header>",
-  "<div id='notice' class='notice' hidden></div>",
-  "<section class='grid'>",
-  "<article class='card'><h2>服务状态</h2><div id='service'>加载中…</div></article>",
-  "<article class='card'><h2>连接摘要</h2><div id='summary'>加载中…</div></article>",
-  "</section>",
-  "<section class='grid'>",
-  "<article class='card'><h2>配对设备</h2><div id='devices'>加载中…</div></article>",
-  "<article class='card'><h2>项目</h2><div id='projects'>加载中…</div><form id='project-form'><label for='project-id'>项目 ID</label><input id='project-id' required pattern='[A-Za-z0-9_-]+' maxlength='100'><label for='project-path'>本机项目目录</label><input id='project-path' required placeholder='/absolute/project/path'><label for='project-title'>显示名称</label><input id='project-title' maxlength='200'><div class='actions'><button type='submit'>添加项目</button></div></form></article>",
-  "</section>",
-  "<section class='grid'>",
-  "<article class='card'><h2>创建配对邀请</h2><form id='invite-form'><div id='project-checks'></div><label for='invite-role'>权限</label><select id='invite-role'><option value='operator'>operator（可操作）</option><option value='viewer'>viewer（只读）</option></select><div class='actions'><button type='submit'>生成 120 秒邀请</button></div></form><label for='pair-method'>配对方式</label><select id='pair-method'><option value='qr'>二维码（默认）</option><option value='link'>链接配对</option></select><div id='pairing-view' class='pairing-view' hidden></div><label for='invite-output'>完整邀请 JSON（仅在本机显示）</label><textarea id='invite-output' readonly></textarea></article>",
-  "<article class='card'><h2>使用说明</h2><p class='muted'>面板只绑定 127.0.0.1。它显示服务锁、已配对设备和项目配置；协议目前没有客户端在线心跳，所以“已配对”不等于客户端当前在线。</p><p class='muted'>邀请包含设备证书材料，只通过可信渠道传给要配对的设备；完成配对后删除传输副本。</p></article>",
-  "</section>",
-  "</main>",
-  "<script>",
-  "const initialToken=new URLSearchParams(location.search).get('token');",
-  "if(initialToken){sessionStorage.setItem('remotedesk.panel.token',initialToken);history.replaceState(null,'','/');}",
-  "const token=sessionStorage.getItem('remotedesk.panel.token')||'';",
-  "let latestPairing=null;",
-  "const $=id=>document.getElementById(id);",
-  "const esc=value=>String(value??'').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[ch]));",
-  "function notice(message,error=false){const el=$('notice');el.textContent=message;el.className=error?'notice error':'notice';el.hidden=!message;}",
-  "async function api(path,options={}){const headers=Object.assign({'Authorization':'Bearer '+token},options.headers||{});if(options.body)headers['Content-Type']='application/json';const response=await fetch(path,Object.assign({},options,{headers}));let data;try{data=await response.json()}catch{data={}}if(!response.ok)throw new Error(data.error||('HTTP_'+response.status));return data;}",
-  "function renderPairing(payload){latestPairing=payload;const view=$('pairing-view');if(payload===null){view.hidden=true;view.innerHTML='';return}view.hidden=false;if($('pair-method').value==='link'){view.innerHTML='<div class=\"pairing-link\">'+esc(payload.pairingLink||'')+'</div><div class=\"muted\">复制链接并在支持 RemoteDesk 配对的客户端打开。</div><div class=\"actions\"><button id=\"copy-pairing-link\" type=\"button\">复制配对链接</button></div>';const button=$('copy-pairing-link');button?.addEventListener('click',async()=>{if(navigator.clipboard)await navigator.clipboard.writeText(payload.pairingLink||'');notice('配对链接已复制')});return}view.innerHTML=payload.qrSvg?'<div class=\"qr-box\"><div class=\"qr-svg\" role=\"img\" aria-label=\"二维码配对\">'+payload.qrSvg+'</div></div><div class=\"muted\">用手机扫描二维码；二维码不可用时切换到链接配对。</div>':'<div class=\"notice error\">二维码暂时不可用，请切换到链接配对。</div>';}",
-  "function serviceText(service){const label=service.running?'运行中':service.lock==='stale'?'锁文件陈旧':'未运行';const cls=service.running?'ok':service.lock==='stale'?'warn':'bad';return '<div class=\"row\"><span>状态</span><span class=\"badge '+cls+'\">'+label+'</span></div><div class=\"row\"><span>监听</span><span>'+esc(service.host)+':'+esc(service.port)+'</span></div><div class=\"row\"><span>进程</span><span>'+esc(service.pid||'—')+'</span></div>';}",
-  "function render(data){$('subtitle').textContent=esc(data.engine.toUpperCase())+' · 控制面板仅限本机 · '+new Date().toLocaleTimeString();$('service').innerHTML=serviceText(data.service);$('summary').innerHTML='<div class=\"row\"><span>项目</span><b>'+data.projects.length+'</b></div><div class=\"row\"><span>已配对设备</span><b>'+data.devices.filter(d=>d.status==='paired').length+'</b></div><div class=\"row\"><span>会话</span><b>'+data.sessions.length+'</b></div><div class=\"row\"><span>操作记录</span><b>'+Object.values(data.operations).reduce((a,b)=>a+b,0)+'</b></div>';",
-  "const projects=data.projects.map(p=>'<div class=\"row\"><span><b>'+esc(p.title)+'</b><br><small class=\"muted\">'+esc(p.id)+' · '+esc(p.path)+'</small></span><span class=\"badge\">'+esc(p.provider||'default')+'</span></div>').join('')||'<div class=\"empty muted\">尚未配置项目</div>';$('projects').innerHTML=projects;",
-  "const checks=data.projects.map(p=>'<label class=\"project-check\"><input type=\"checkbox\" name=\"project\" value=\"'+esc(p.id)+'\"> <span>'+esc(p.title)+'（'+esc(p.id)+'）</span></label>').join('')||'<div class=\"muted\">先添加项目</div>';$('project-checks').innerHTML=checks;",
-  "const devices=data.devices.map(d=>{const cls=d.status==='paired'?'ok':d.status==='revoked'?'bad':'warn';const label=d.status==='paired'?'已配对':d.status==='revoked'?'已撤销':'已过期';return '<tr><td><b>'+esc(d.name||'未命名设备')+'</b><br><small>'+esc(d.id)+'</small></td><td>'+esc(d.role)+'<br><span class=\"badge '+cls+'\">'+label+'</span></td><td>'+esc((d.projects||[]).join(', '))+'</td><td>'+(d.revoked?'—':'<button class=\"danger revoke\" data-device=\"'+esc(d.id)+'\">撤销</button>')+'</td></tr>'}).join('');$('devices').innerHTML=devices?'<table><thead><tr><th>设备</th><th>角色</th><th>项目</th><th>操作</th></tr></thead><tbody>'+devices+'</tbody></table>':'<div class=\"empty muted\">尚未配对设备</div>';document.querySelectorAll('.revoke').forEach(button=>button.addEventListener('click',async()=>{if(!confirm('撤销此设备的远程访问？'))return;button.disabled=true;try{await api('/api/revoke',{method:'POST',body:JSON.stringify({device:button.dataset.device})});notice('设备已撤销');await refresh()}catch(error){notice(error.message,true)}finally{button.disabled=false}}));}",
-  "async function refresh(){if(!token){notice('控制令牌缺失。请使用插件启动时输出的本机面板 URL 打开。',true);return}try{notice('');render(await api('/api/status'))}catch(error){notice(error.message,true)}}",
-  "$('refresh').addEventListener('click',refresh);",
-  "$('project-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;try{await api('/api/project',{method:'POST',body:JSON.stringify({id:$('project-id').value,path:$('project-path').value,title:$('project-title').value||undefined})});event.target.reset();notice('项目已添加；服务重启后会加载新的项目配置');await refresh()}catch(error){notice(error.message,true)}finally{button.disabled=false}});",
-  "$('pair-method').addEventListener('change',()=>renderPairing(latestPairing));",
-  "$('invite-form').addEventListener('submit',async event=>{event.preventDefault();const projects=[...document.querySelectorAll('input[name=project]:checked')].map(input=>input.value);if(!projects.length){notice('至少选择一个项目',true);return}const button=event.target.querySelector('button');button.disabled=true;try{const result=await api('/api/invite',{method:'POST',body:JSON.stringify({projects,role:$('invite-role').value})});$('invite-output').value=JSON.stringify(result.invite,null,2);$('pair-method').value='qr';renderPairing({qr:result.qr,qrSvg:result.qrSvg,pairingLink:result.pairingLink});notice('邀请已生成，120 秒后过期')}catch(error){renderPairing(null);notice(error.message,true)}finally{button.disabled=false}});",
-  "refresh();",
-  "</script>",
-  "</body>",
-  "</html>"
-].join("\n");
 
 function httpError(statusCode, error) {
   const candidate = error && typeof error === "object" ? error.code || error.message : undefined;
@@ -94,7 +26,7 @@ function json(res, statusCode, value) {
   res.end(JSON.stringify(value));
 }
 
-function page(res) {
+function page(res, html) {
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
@@ -102,7 +34,7 @@ function page(res) {
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
   });
-  res.end(PAGE);
+  res.end(html);
 }
 
 function sameToken(expected, supplied) {
@@ -209,12 +141,13 @@ export async function startControlPanel(state, { engine, port } = {}) {
   await privateDirectory(state);
   const expectedPort = port === undefined ? DEFAULT_PORTS[engine] : Number(port);
   validatePort(expectedPort);
+  const html = controlPanelPage(engine);
   const token = randomBytes(32).toString("base64url");
   let panelOrigin = "";
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", panelOrigin || "http://127.0.0.1");
     if (req.method === "GET" && url.pathname === "/") {
-      page(res);
+      page(res, html);
       return;
     }
     if (!url.pathname.startsWith("/api/")) {
