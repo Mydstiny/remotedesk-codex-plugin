@@ -21,7 +21,7 @@ HTTP 200 读响应 `{result:<值>}`，写响应 `{operation:<回执>}`。协议�
 | session.read | `{sessionId,cursor?}` | `{session:{id,project,archived,title},snapshot,cursor}`；外层 cursor 是 SSE 游标，snapshot.nextCursor 是历史分页游标 |
 | session.resume | `{sessionId,lease}` | `{resumed:true}`，恢复并取消归档状态 |
 | session.archive | `{sessionId,lease}` | `{archived:true}`，先取消并收敛自有原生任务；Codex 调用原生 archive，DSH 保存桥接归档并卸载自有 agent；只读历史不取消归档 |
-| lease.acquire | `{sessionId}` | `{lease,expires}`；写租约 90 秒，别的有效控制器获得 LEASE_BUSY |
+| lease.acquire | `{sessionId}` | `{lease,expires}`；写租约 90 秒，别的有效控制器获得 LEASE_BUSY。同一设备在租约过期后再次取得时沿用原令牌，未答复的审批仍可答复；其他设备取得时旧审批作废 |
 | lease.renew | `{sessionId,lease}` | `{expires}`，建议每 30 秒续期 |
 | lease.release | `{sessionId,lease}` | `{released:true}`；撤销待答审批，不取消模型任务 |
 | turn.start | `{sessionId,lease,text,attachments?,settings?}` | Codex `{turnId,cancelRequested}` / DSH `{messageId,accepted:true}`；仅表示接受，不等于回合完成 |

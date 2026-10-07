@@ -79,7 +79,7 @@ async function setup() {
   };
 }
 test(
-  "strict server identity, epoch expiry and lease expiry cannot resurrect old approvals",
+  "strict server identity, epoch expiry, and a lapsed lease taken by another device cannot resurrect old approvals",
   { timeout: 60000 },
   async () => {
     const t = await setup();
@@ -95,21 +95,55 @@ test(
       const lease = (await t.call("lease.acquire", { sessionId: id })).result
         .lease;
       await t.call("turn.start", { sessionId: id, lease, text: "fixture" });
+      const db = new Store(t.state);
+      const lapse = () => {
+        const l = db.get("lease", id);
+        l.expires = Date.now() - 1;
+        db.put("lease", id, l);
+      };
+      // The same device after a lapse (asleep, off the network past a renewal) gets its own lease back, and its open
+      // approval is still answerable with it.
+      const own = t.adapter.core.ask(id, { kind: "command" });
+      const ownPending = (await t.client.read("approval.list", { sessionId: id }))[0];
+      lapse();
+      await delay(700);
+      assert.equal(
+        (await t.call("lease.acquire", { sessionId: id })).result.lease,
+        lease,
+      );
+      assert.equal(
+        (
+          await t.call("approval.answer", {
+            sessionId: id,
+            lease,
+            approvalId: ownPending.id,
+            answer: { decision: "decline" },
+          })
+        ).status,
+        "succeeded",
+      );
+      assert.deepEqual(await own, { decision: "decline" });
+      // Another device taking control after the lapse starts over: the open approval ends and stays unanswerable.
       const ask = t.adapter.core.ask(id, { kind: "command" }).catch((e) => e);
       const pending = (
         await t.client.read("approval.list", { sessionId: id })
       )[0];
-      const db = new Store(t.state);
-      const l = db.get("lease", id);
-      l.expires = Date.now() - 1;
-      db.put("lease", id, l);
-      const replacement = (await t.call("lease.acquire", { sessionId: id }))
+      lapse();
+      const otherInvite = await invite(t.state, { projects: ["p"] });
+      await pairClient(join(t.root, "other"), { url: t.url, invite: otherInvite });
+      const other = await loadClient(join(t.root, "other"));
+      const otherCall = (method, params) =>
+        other.client.write(method, params, {
+          operationId: randomUUID(),
+          epoch: other.handshake.epoch.id,
+        });
+      const replacement = (await otherCall("lease.acquire", { sessionId: id }))
         .result.lease;
       assert.notEqual(replacement, lease);
       assert.equal((await ask).code, "APPROVAL_CANCELLED");
       assert.equal(
         (
-          await t.call("approval.answer", {
+          await otherCall("approval.answer", {
             sessionId: id,
             lease: replacement,
             approvalId: pending.id,
@@ -117,6 +151,11 @@ test(
           })
         ).error,
         "APPROVAL_STALE",
+      );
+      assert.equal(
+        (await t.call("lease.acquire", { sessionId: id })).error,
+        "LEASE_BUSY",
+        "the first device does not get control back while the other holds it",
       );
       const epoch = db.get("epoch", t.handshake.epoch.id);
       epoch.expires = Date.now() - 1;
@@ -202,6 +241,7 @@ test("service definitions quote paths and use current-user non-elevated managers
   };
   const mac = serviceDefinition({ ...common, platform: "darwin" });
   assert.match(mac.text, /<string>\/app folder\/cli.mjs<\/string>/);
+  assert.match(mac.text, /<key>CODEX_HOME<\/key>/);
   const linux = serviceDefinition({ ...common, platform: "linux" });
   assert.match(linux.text, /KillMode=control-group/);
   assert.match(

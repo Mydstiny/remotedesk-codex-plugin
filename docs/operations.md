@@ -4,7 +4,7 @@
 
 核对 README、compatibility.json、SECURITY 和 Release 的 SHA256SUMS。将归档解压到当前用户可写的持久版本目录，例如 `RemoteDesk/codex/0.3.0`。所有命令从该目录运行。使用普通用户；不要让服务引用临时目录，不以 root/SYSTEM 运行。
 
-需要 Node.js 22.16+、OpenSSL 3、Codex **0.153.4**。使用宿主原有 provider 配置，不复制/显示密钥，不修改全局模型默认值。`doctor --json` 只验证版本和结构，实际模型调用需单独测试。无需容器、镜像或 Docker daemon。
+需要 Node.js 22.16+、OpenSSL 3、Codex **0.153.4、0.157.1 或 0.159.2**。使用宿主原有 provider 配置，不复制/显示密钥，不修改全局模型默认值。`doctor --json` 只验证版本和结构，实际模型调用需单独测试。无需容器、镜像或 Docker daemon。
 
 ## 初始化和授权项目
 
@@ -25,6 +25,14 @@ node bin/remotedesk-codex.mjs project-add --state "$STATE" --id demo --path "/ab
 ```sh
 node bin/remotedesk-codex.mjs serve --state "$STATE"
 ```
+
+仅在本机浏览器打开管理面板：
+
+```sh
+node bin/remotedesk-codex.mjs panel --state "$STATE"
+```
+
+面板令牌只打印在启动输出中，且 API 仅接受 Authorization header。
 
 看到 `ready: true` 后，在另一终端创建两分钟有效的邀请并配对参考客户端：
 
@@ -80,4 +88,4 @@ node bin/remotedesk-codex.mjs recover --state "$STATE" --confirm-native-cleanup 
 
 `renew-server --state "$STATE"` 续签同一 CA/SAN 的服务证书后需重启。设备证书 90 天、服务证书一年、CA 十年；更换身份需要重新配对和撤销旧设备。`status` 查看设备 ID，`revoke --device <id>` 撤销并请求取消其远程活动。卸载前 stop，再 `service --state "$STATE" --action uninstall`；保留项目、state、原生账号和用户历史。
 
-常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。
+常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化（同一设备只是错过续期时，重新取得租约即可继续答复）；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。

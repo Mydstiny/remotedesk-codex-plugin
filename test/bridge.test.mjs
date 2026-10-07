@@ -159,6 +159,22 @@ test(
         "succeeded",
       );
       assert.deepEqual(await request, { decision: "decline" });
+      // The phone misses its renewals (asleep, off the network): the lease lapses, but an open approval does not end
+      // with it. Taking control again returns the same lease, and the approval is answered with it.
+      const lapsedAsk = adapter.core.ask(id, { type: "command" }, new AbortController().signal);
+      await delay(20);
+      const lapsed = (await client.read("approval.list", { sessionId: id }))[0];
+      const held = bridge.store.get("lease", id);
+      held.expires = Date.now() - 1;
+      bridge.store.put("lease", id, held);
+      await delay(700);
+      assert.equal((await client.read("approval.list", { sessionId: id })).length, 1, "a lapsed lease leaves the approval open");
+      assert.equal((await call("lease.acquire", { sessionId: id })).result.lease, lease, "the same device gets its lease back");
+      assert.equal(
+        (await call("approval.answer", { sessionId: id, lease, approvalId: lapsed.id, answer: { decision: "accept" } })).status,
+        "succeeded",
+      );
+      assert.deepEqual(await lapsedAsk, { decision: "accept" });
       const oldAsk = adapter.core
         .ask(id, { type: "command" }, new AbortController().signal)
         .catch((e) => e);

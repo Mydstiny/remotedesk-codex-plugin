@@ -4,7 +4,7 @@ import { readFile, open, unlink, realpath } from "node:fs/promises";
 import { ProjectLocks } from "./project-lock.mjs";
 import { privateDirectory } from "./privacy.mjs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Store, token } from "./store.mjs";
 import { issueClient } from "./pki.mjs";
 import { configuration, digest, inside } from "./admin.mjs";
@@ -51,6 +51,15 @@ const MUTATE = new Set([
   "session.compact",
   "terminal.stop",
 ]);
+/** "*" grants every project, including the computer app's own projects as they come and go. */
+function granted(d, id) {
+  return d.projects.includes(id) || d.projects.includes("*");
+}
+const APP_PROJECT_REFRESH_MS = 30000;
+// Imported native conversations share the session store with bridge-created ones.
+const SESSION_STORE_LIMIT = 5000;
+const NATIVE_IMPORT_LIMIT = 100;
+const NATIVE_RESCAN_MS = 30000;
 export class Bridge {
   constructor(directory, adapter) {
     this.directory = directory;
@@ -133,6 +142,7 @@ export class Bridge {
           }),
       });
       await this.adapter.prepare?.();
+      await this.refreshAppProjects(true);
       for (const p of this.config.projects) {
         requireThat(
           (await realpath(p.path)) === p.path,
@@ -199,11 +209,129 @@ export class Bridge {
     );
     return now;
   }
+  /**
+   * The computer app's own projects (the Codex app's projects, the DSH app's workspaces) join the configured ones,
+   * with stable ids derived from the app's project id. They are re-read at most every APP_PROJECT_REFRESH_MS; a
+   * project whose folder is gone or overlaps the bridge's own state is left out. A failed read keeps the last list.
+   */
+  async refreshAppProjects(force = false) {
+    if (typeof this.adapter.nativeProjects !== "function") return;
+    if (!force && Date.now() - (this.appProjectsAt ?? 0) < APP_PROJECT_REFRESH_MS) return;
+    this.appProjectsAt = Date.now();
+    let rows;
+    try {
+      rows = await this.adapter.nativeProjects();
+    } catch (e) {
+      process.stderr.write(JSON.stringify({ appProjects: "failed", error: String(e?.code ?? e?.message ?? e).slice(0, 200) }) + "\n");
+      return;
+    }
+    const state = await realpath(this.directory),
+      coordination = await realpath(this.config.coordinationDirectory).catch(() => null),
+      next = [];
+    for (const row of rows ?? []) {
+      if (typeof row?.key !== "string" || !Array.isArray(row.roots)) continue;
+      const roots = [];
+      for (const root of row.roots) {
+        try {
+          const path = await realpath(root);
+          if (inside(path, state) || inside(state, path)) continue;
+          if (coordination && (inside(path, coordination) || inside(coordination, path))) continue;
+          if (!roots.includes(path)) roots.push(path);
+        } catch {
+          // A folder that no longer exists is not offered.
+        }
+      }
+      if (!roots.length) continue;
+      next.push({
+        id: "app-" + createHash("sha256").update(row.key).digest("hex").slice(0, 12),
+        path: roots[0],
+        roots,
+        title: String(row.title || roots[0].split(/[\\/]/).pop() || "项目").slice(0, 200),
+        app: true,
+      });
+    }
+    const configured = this.config.projects.filter((p) => !p.app);
+    this.config.projects.splice(0, this.config.projects.length, ...configured, ...next);
+    process.stderr.write(JSON.stringify({ appProjects: next.length }) + "\n");
+  }
+  /**
+   * Registers the newest native conversations of a project folder (at most NATIVE_IMPORT_LIMIT, rescanned at most
+   * every NATIVE_RESCAN_MS) as sessions bound to their native thread, so read, resume, lease and turns work as for
+   * bridge-created sessions. A failed scan never fails the listing.
+   */
+  async importNative(project) {
+    if (typeof this.adapter.nativeSessions !== "function") return;
+    this.nativeScans ??= new Map();
+    const last = this.nativeScans.get(project.id) ?? 0;
+    if (Date.now() - last < NATIVE_RESCAN_MS) return;
+    this.nativeScans.set(project.id, Date.now());
+    let rows;
+    try {
+      rows = await this.adapter.nativeSessions(project, { limit: NATIVE_IMPORT_LIMIT });
+    } catch (e) {
+      process.stderr.write(
+        JSON.stringify({ nativeImport: project.id, error: String(e?.code ?? e?.message ?? e).slice(0, 200) }) + "\n",
+      );
+      return;
+    }
+    process.stderr.write(JSON.stringify({ nativeImport: project.id, found: rows.length }) + "\n");
+    const projectIds = new Set(this.config.projects.map((p) => p.id));
+    // A conversation imported under a project that is gone (or a manual project the app now covers) moves here.
+    // One session per native conversation: one the bridge created (or one already here) wins over an orphaned
+    // import of the same conversation, which is left where it is instead of joining it as a duplicate.
+    const known = new Map();
+    for (const s of this.store
+      .all("session")
+      .filter((s) => s.upstream && (s.project === project.id || (s.nativeImported && !projectIds.has(s.project))))) {
+      const prior = known.get(s.upstream);
+      if (!prior || (prior.nativeImported && !s.nativeImported) || (prior.project !== project.id && s.project === project.id))
+        known.set(s.upstream, s);
+    }
+    for (const row of rows.slice(0, NATIVE_IMPORT_LIMIT)) {
+      if (typeof row?.upstream !== "string" || !row.upstream) continue;
+      const title = String(row.title || "未命名会话").slice(0, 200);
+      const updatedAt = Number.isFinite(row.updatedAt) ? row.updatedAt : Date.now();
+      const existing = known.get(row.upstream);
+      if (existing) {
+        if (
+          existing.nativeImported &&
+          (existing.project !== project.id || existing.title !== title || (existing.updatedAt ?? 0) < updatedAt)
+        )
+          this.store.put("session", existing.id, {
+            ...existing,
+            project: project.id,
+            title,
+            updatedAt: Math.max(existing.updatedAt ?? 0, updatedAt),
+            ...(typeof row.cwd === "string" ? { cwd: row.cwd } : {}),
+          });
+        continue;
+      }
+      if (this.store.all("session").length >= SESSION_STORE_LIMIT) break;
+      // An adapter whose events are keyed by the native id (DSH) asks for that id as the session id.
+      const id =
+        typeof row.id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(row.id) && !this.store.get("session", row.id)
+          ? row.id
+          : randomUUID();
+      const s = {
+        id,
+        project: project.id,
+        title,
+        archived: row.archived === true,
+        updatedAt,
+        upstream: row.upstream,
+        nativePhase: "ready",
+        nativeImported: true,
+        ...(typeof row.cwd === "string" ? { cwd: row.cwd } : {}),
+      };
+      this.store.put("session", s.id, s);
+      known.set(row.upstream, s);
+    }
+  }
   project(d, id) {
     identifier(id);
     this.current(d);
     const p = this.config.projects.find((p) => p.id === id);
-    requireThat(p && d.projects.includes(id), "PROJECT_FORBIDDEN");
+    requireThat(p && granted(d, id), "PROJECT_FORBIDDEN");
     return p;
   }
   session(d, id) {
@@ -385,8 +513,9 @@ export class Bridge {
     }
     if (method === "project.list") {
       fields(p, []);
+      await this.refreshAppProjects();
       return this.config.projects
-        .filter((p) => d.projects.includes(p.id))
+        .filter((p) => granted(d, p.id))
         .map(({ id, title }) => ({ id, title }));
     }
     if (method === "session.list") {
@@ -395,7 +524,14 @@ export class Bridge {
         ["projectId", "cursor", "limit", "query", "archived"],
         ["projectId"],
       );
-      this.project(d, p.projectId);
+      const listed = this.project(d, p.projectId);
+      // Conversations started on the computer itself (the Codex app, the DSH app) in this project's folder are
+      // listed too: the first page registers them as bridge sessions bound to their native thread.
+      // The first look at a project waits for its scan; later ones answer from the store at once and rescan behind.
+      if (p.cursor === undefined) {
+        if (this.nativeScans?.has(listed.id)) void this.importNative(listed);
+        else await this.importNative(listed);
+      }
       if (p.query !== undefined) string(p.query, 500);
       if (p.archived !== undefined)
         requireThat(typeof p.archived === "boolean", "ARCHIVED_INVALID");
@@ -422,6 +558,7 @@ export class Bridge {
             reasoningEffort,
             updatedAt,
             nativePhase,
+            nativeImported,
           }) => ({
             id,
             project,
@@ -432,6 +569,7 @@ export class Bridge {
             reasoningEffort,
             updatedAt,
             nativePhase,
+            origin: nativeImported ? "computer" : "remote",
           }),
         );
       if (p.limit === undefined && p.cursor === undefined) return rows;
@@ -563,7 +701,7 @@ export class Bridge {
     if (method === "session.create") {
       fields(p, ["projectId", "title", "settings"], ["projectId"]);
       const project = this.project(d, p.projectId);
-      requireThat(this.store.all("session").length < 1000, "SESSION_LIMIT");
+      requireThat(this.store.all("session").length < SESSION_STORE_LIMIT, "SESSION_LIMIT");
       const s = {
         id: randomUUID(),
         project: project.id,
@@ -657,11 +795,10 @@ export class Bridge {
           (old.device === d.id && old.generation === d.generation),
         "LEASE_BUSY",
       );
+      // The same device taking control again keeps its token, even after a lapse (the phone slept or lost the
+      // network past a renewal): its open approvals stay answerable. Only another device starts over.
       const valid =
-        old &&
-        old.expires > Date.now() &&
-        old.device === d.id &&
-        old.generation === d.generation;
+        old && old.device === d.id && old.generation === d.generation;
       if (!valid) this.cancelAsks(s.id);
       const l = {
         id: s.id,
@@ -744,7 +881,7 @@ export class Bridge {
       requireThat(!s.archived, "SESSION_ARCHIVED");
       await this.adapter.quiescent?.(s);
       requireThat(this.adapter.fork, "CAPABILITY_UNAVAILABLE");
-      requireThat(this.store.all("session").length < 1000, "SESSION_LIMIT");
+      requireThat(this.store.all("session").length < SESSION_STORE_LIMIT, "SESSION_LIMIT");
       if (p.lastTurnId !== undefined) string(p.lastTurnId, 500);
       const child = {
         ...s,
@@ -877,7 +1014,7 @@ export class Bridge {
       }
     });
     for (const stream of this.streams.values())
-      if (stream.device.projects.includes(s.project)) this.sendEvent(stream, e);
+      if (granted(stream.device, s.project)) this.sendEvent(stream, e);
   }
   sendEvent(stream, e) {
     const { res, device } = stream;
@@ -923,7 +1060,7 @@ export class Bridge {
     const id = token();
     this.streams.set(id, { device: d, res });
     for (const e of this.events)
-      if (e.cursor > cursor && d.projects.includes(e.project))
+      if (e.cursor > cursor && granted(d, e.project))
         this.sendEvent({ res, device: d }, e);
     const heartbeat = setInterval(() => {
       if (!res.destroyed) res.write(": heartbeat\n\n");
@@ -1018,9 +1155,11 @@ export class Bridge {
         }
       }
     }
+    // An approval ends with its own expiry, when control is released, or when another device takes control; a lapsed
+    // renewal alone does not end it (the phone takes control again with the same token and answers it).
     for (const a of [...this.asks.values()]) {
       const l = this.store.get("lease", a.session);
-      if (!l || l.expires <= Date.now() || l.token !== a.lease) a.reject();
+      if (!l || l.token !== a.lease) a.reject();
     }
   }
   async stop() {

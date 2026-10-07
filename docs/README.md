@@ -1,6 +1,7 @@
 # Documentation
 
 - [Install, operate, upgrade, rollback and uninstall](operations.md)
+- [Local control panel](control-panel.md)
 - [Instructions for your deployment agent](agent-deploy.md)
 - [Protocol v1](protocol.md)
 - [Compatibility and verification evidence](compatibility.md)
