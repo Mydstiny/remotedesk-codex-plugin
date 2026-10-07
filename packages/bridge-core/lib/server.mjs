@@ -795,11 +795,10 @@ export class Bridge {
           (old.device === d.id && old.generation === d.generation),
         "LEASE_BUSY",
       );
+      // The same device taking control again keeps its token, even after a lapse (the phone slept or lost the
+      // network past a renewal): its open approvals stay answerable. Only another device starts over.
       const valid =
-        old &&
-        old.expires > Date.now() &&
-        old.device === d.id &&
-        old.generation === d.generation;
+        old && old.device === d.id && old.generation === d.generation;
       if (!valid) this.cancelAsks(s.id);
       const l = {
         id: s.id,
@@ -1156,9 +1155,11 @@ export class Bridge {
         }
       }
     }
+    // An approval ends with its own expiry, when control is released, or when another device takes control; a lapsed
+    // renewal alone does not end it (the phone takes control again with the same token and answers it).
     for (const a of [...this.asks.values()]) {
       const l = this.store.get("lease", a.session);
-      if (!l || l.expires <= Date.now() || l.token !== a.lease) a.reject();
+      if (!l || l.token !== a.lease) a.reject();
     }
   }
   async stop() {

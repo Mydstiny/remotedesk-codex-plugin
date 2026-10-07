@@ -88,4 +88,4 @@ node bin/remotedesk-codex.mjs recover --state "$STATE" --confirm-native-cleanup 
 
 `renew-server --state "$STATE"` 续签同一 CA/SAN 的服务证书后需重启。设备证书 90 天、服务证书一年、CA 十年；更换身份需要重新配对和撤销旧设备。`status` 查看设备 ID，`revoke --device <id>` 撤销并请求取消其远程活动。卸载前 stop，再 `service --state "$STATE" --action uninstall`；保留项目、state、原生账号和用户历史。
 
-常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。
+常见错误：UNVERIFIED_* 表示版本不匹配；PRIVATE_DIRECTORY_* 表示权限不安全；PROJECT_BUSY 表示另一 RemoteDesk 会话持有项目；APPROVAL_STALE 表示租约/设备/请求已变化（同一设备只是错过续期时，重新取得租约即可继续答复）；NATIVE_SESSION_* 或 unknown 需要核对原生历史。命令退出 0 仅表示本次动作成功，2 表示失败或未知。
