@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { access, readFile, realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
 import { StdioRpc } from "../packages/bridge-core/stdio-rpc.mjs";
 import { nativeEnvironment } from "../packages/bridge-core/lib/native-workspace.mjs";
 import { validateNativeAnswer } from "../packages/bridge-core/lib/native-answers.mjs";
@@ -136,6 +137,14 @@ const deadline = async (promise, ms, code) => {
     clearTimeout(timer);
   }
 };
+/** A thread without a name is titled by its first prompt line (skipping attached-file headings). */
+function threadPreviewTitle(preview) {
+  const lines = String(preview ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && !line.startsWith("<"));
+  return (lines[0] ?? "").slice(0, 120);
+}
 export class CodexAdapter {
   capabilities = {
     sessions: true,
@@ -318,6 +327,14 @@ export class CodexAdapter {
         this.providerOverrides?.model_provider ??
         effective.config?.model_provider ??
         "openai";
+      // The Codex catalog (descriptions and reasoning efforts) is offered whatever the provider; a configured
+      // custom model the catalog does not know is still offered on its own.
+      const catalog = await rpc.request("model/list", {
+        limit: 100,
+        ...(cursor ? { cursor } : {}),
+      });
+      if ((catalog.data ?? []).length > 0)
+        return { ...catalog, data: catalog.data.map((m) => ({ ...m, provider })) };
       if (provider !== "openai") {
         requireThat(!cursor, "CURSOR_INVALID");
         const model =
@@ -388,8 +405,11 @@ export class CodexAdapter {
     }
   }
   async parameters(rpc, s, p) {
+    // An imported conversation keeps its own folder when that folder belongs to the project (a project can span
+    // several folders in the Codex app); otherwise the project's folder.
+    const cwd = typeof s.cwd === "string" && (p.roots ?? [p.path]).includes(s.cwd) ? s.cwd : p.path;
     const { config: effective } = await rpc.request("config/read", {
-      cwd: p.path,
+      cwd,
       includeLayers: false,
     });
     const profile = "remotedesk-" + randomUUID();
@@ -406,7 +426,7 @@ export class CodexAdapter {
       profile,
       mode,
       params: {
-        cwd: p.path,
+        cwd,
         approvalPolicy: APPROVAL_POLICY,
         approvalsReviewer: "user",
         config: {
@@ -585,6 +605,65 @@ export class CodexAdapter {
     try {
       authorize();
       return await rpc.request(method, { threadId: s.upstream, ...params });
+    } finally {
+      await rpc.close();
+    }
+  }
+  /** The Codex app's projects (its sidebar): each with the folders (roots) its conversations run in. */
+  async nativeProjects() {
+    const rpc = await this.spawn({ path: homedir() }),
+      rows = [];
+    try {
+      let cursor,
+        count = 0;
+      do {
+        const page = await rpc.request("project/list", cursor ? { cursor } : {});
+        for (const p of page.data ?? [])
+          rows.push({
+            key: "codex:" + p.id,
+            title: p.name,
+            roots: (p.roots ?? []).map((root) => root.path).filter((path) => typeof path === "string"),
+          });
+        cursor = page.nextCursor;
+      } while (cursor && ++count < 10);
+      return rows;
+    } finally {
+      await rpc.close();
+    }
+  }
+  /**
+   * The project's own Codex conversations (the Codex app, the CLI) across its folders, newest first: top-level
+   * threads only (no sub-agents or ephemeral threads). The bridge binds each to a session by its thread id.
+   */
+  async nativeSessions(p, { limit = 100 } = {}) {
+    const rpc = await this.spawn(p),
+      rows = new Map();
+    try {
+      for (const root of p.roots ?? [p.path]) {
+        let cursor,
+          count = 0;
+        do {
+          const page = await rpc.request("thread/list", {
+            cwd: root,
+            archived: false,
+            modelProviders: [],
+            limit: 100,
+            ...(cursor ? { cursor } : {}),
+          });
+          for (const t of page.data ?? []) {
+            if (t.ephemeral || t.parentThreadId || t.agentRole || rows.has(t.id)) continue;
+            rows.set(t.id, {
+              upstream: t.id,
+              title: t.name || threadPreviewTitle(t.preview),
+              updatedAt: (t.recencyAt ?? t.updatedAt ?? t.createdAt ?? 0) * 1000,
+              archived: false,
+              cwd: t.cwd,
+            });
+          }
+          cursor = page.nextCursor;
+        } while (cursor && rows.size < limit * 2 && ++count < 10);
+      }
+      return [...rows.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
     } finally {
       await rpc.close();
     }
