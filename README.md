@@ -15,4 +15,6 @@ node bin/remotedesk-codex.mjs help
 
 默认监听 `127.0.0.1:9443`。注册 skill/bundle 本身不会开放监听；实际服务、模型账号及客户端连接需要各自验收。首次部署可把 [代理安装说明](docs/agent-deploy.md) 交给本机助手执行。
 
+独立的[免费输入识别辅助](docs/text-input.md)供 RemoteDesktop 虚拟键盘使用，仅提供经配对和捕获桌面登记的焦点/矩形元数据；不需要模型或 Pro，不启动现有 AI 服务。平台与真实设备能力分别验收。
+
 [English](README.en.md) · [协议](docs/protocol.md) · [兼容性与验证](docs/compatibility.md) · [依赖来源](docs/provenance.json) · [鸿蒙开发边界](docs/roadmap.md)
