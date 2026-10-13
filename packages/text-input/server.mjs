@@ -1,5 +1,5 @@
 import https from 'node:https';
-import { readFile, writeFile, open, unlink, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, open, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { initializePki, issueClient } from '../bridge-core/lib/pki.mjs';
@@ -15,8 +15,7 @@ const response = (res, status, value) => { const body = JSON.stringify(value); i
 export async function initialize(directory, { listen = '127.0.0.1', port = 9446, serverNames = ['localhost', '127.0.0.1'] } = {}) {
   requireThat(Number.isSafeInteger(port) && port >= 1024 && port <= 65535, 'PORT_INVALID');
   string(listen, 253, /^[a-zA-Z0-9.:-]+$/);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  await privateDirectory(directory);
+  await privateDirectory(directory, { create: true, empty: true });
   const lock = await open(join(directory, 'initialize.lock'), 'wx', 0o600);
   try {
     try { await readFile(join(directory, 'text-input.json')); throw new Error('ALREADY_INITIALIZED'); }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { binding, metadata, fingerprint } from '../packages/text-input/policy.mjs';
@@ -34,6 +34,13 @@ test('dedicated mTLS grants, owner lease, binding mismatch, static geometry and 
   const state = join(root, 'state'); let server;
   try {
     await initialize(state); await enroll(state, descriptor);
+    const caBefore = await readFile(join(state, 'pki', 'ca.pem'), 'utf8');
+    await assert.rejects(initialize(state), /STATE_DIRECTORY_NOT_EMPTY/);
+    assert.equal(await readFile(join(state, 'pki', 'ca.pem'), 'utf8'), caBefore);
+    const occupied = join(root, 'occupied'); await mkdir(occupied);
+    await writeFile(join(occupied, 'keep.txt'), 'fixture-existing-data');
+    await assert.rejects(initialize(occupied), /STATE_DIRECTORY_NOT_EMPTY/);
+    assert.equal(await readFile(join(occupied, 'keep.txt'), 'utf8'), 'fixture-existing-data');
     const config = JSON.parse(await readFile(join(state, 'text-input.json'), 'utf8')); config.port = 0;
     await writeFile(join(state, 'text-input.json'), JSON.stringify(config));
     const provider = { async read() { return raw; }, close() {} };

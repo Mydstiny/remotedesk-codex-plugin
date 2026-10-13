@@ -4,7 +4,7 @@
 
 服务默认监听 `127.0.0.1:9446`，只接受 TLS 1.3。配对邀请码由本机管理员生成，两分钟过期且只能使用一次。配对后的每次请求需要 mTLS 设备证书，设备撤权在查询前后复查。元数据 lease 绑定 runtime、设备 generation、客户端 owner nonce、协议、连接标识、当前显示器和 framebuffer 尺寸；15 秒过期，以服务端单调时间判断。
 
-用 `node bin/remotedesk-text-input.mjs probe` 核验平台 provider 状态。不会弹出或自动授予辅助功能权限。`init <state>` 创建独立私有目录和 CA；`enroll <state> <descriptor.json>` 登记已由操作者确认的捕获桌面；`invite <state> <binding-id>` 生成设备邀请码；`serve <state>` 运行服务。`devices <state>` 列出设备 ID、到期和撤权状态（不输出证书或密钥），再用 `revoke <state> <device-id>` 撤权。部署到 LAN、修改监听地址/证书 SAN 或授权辅助功能需要操作者明确操作，安装本仓库不会自行执行。
+用 `node bin/remotedesk-text-input.mjs probe` 核验平台 provider 状态。不会弹出或自动授予辅助功能权限。`init <state>` 仅在新建或空目录建立独立私有权限和 CA（Windows 使用当前用户专属 ACL），已有非空目录先拒绝，不覆盖密钥或改变其 ACL；`enroll <state> <descriptor.json>` 登记已由操作者确认的捕获桌面；`invite <state> <binding-id>` 生成设备邀请码；`serve <state>` 运行服务。`devices <state>` 列出设备 ID、到期和撤权状态（不输出证书或密钥），再用 `revoke <state> <device-id>` 撤权。部署到 LAN、修改监听地址/证书 SAN 或授权辅助功能需要操作者明确操作，安装本仓库不会自行执行。
 
 捕获登记格式：
 
